@@ -44,6 +44,10 @@ var SchemaRecord = map[string]schema{
 		"lastUpdateCheck":      &value[string]{time.Now().Format(time.RFC3339)},
 		"updateAvailable":      &value[bool]{false},
 		"autoExpandBlacklists": &value[AutoExpandBlacklists]{AutoExpandBlacklists{}},
+		"botToken":             &value[string]{""},           // WARNING: if you change this, update the print func in config.go
+		"botChannelID":         &value[string]{""},           // internal channel for privileged updates, etc.
+		"backupPassword":       &value[string]{""},           // WARNING: if you change this, update the print func in config.go
+		"adminUserIDs":         &value[[]string]{[]string{}}, // list of user IDs that are considered admins
 	},
 	/*
 		"v0.0.2": {

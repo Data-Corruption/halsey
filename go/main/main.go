@@ -31,10 +31,9 @@ var cleanUpFuncs []func() error
 func main() {
 	defer cleanup()
 	app := &cli.Command{
-		Name:        Name,
-		Usage:       "example CLI application with web capabilities",
-		Version:     Version,
-		Description: Name + " is a CLI application that provides web capabilities and various commands to manage the application.",
+		Name:    Name,
+		Version: Version,
+		Usage:   "The best bot in the world ;3 xoxo",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "verbose",

@@ -8,9 +8,8 @@ import (
 )
 
 var Database = &cli.Command{
-	Name:    "database",
-	Aliases: []string{"db"},
-	Usage:   "Database commands",
+	Name:  "database",
+	Usage: "Database commands",
 	Commands: []*cli.Command{
 		{
 			Name:    "print",

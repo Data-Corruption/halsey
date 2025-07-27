@@ -258,3 +258,25 @@ func (cfg *Config) Migrate() error {
 		return fmt.Errorf("unsupported migration path: from '%s' to '%s'. No migration function registered for this transition", discVersion, cfg.Version)
 	})
 }
+
+// Print prints the current configuration to stdout.
+// This is useful for debugging and verifying the current configuration state.
+func (cfg *Config) Print() error {
+	// update cause i haven't added a view or read txn
+	return cfg.DB.Update(func(txn *lmdb.Txn) error {
+		fmt.Printf("Current Configuration (Version: %s):\n", cfg.Version)
+		for key, value := range cfg.Schemas[cfg.Version] {
+			// if botToken or backupPassword hide the value
+			if key == "botToken" || key == "backupPassword" {
+				fmt.Printf("%s: [REDACTED]\n", key)
+				continue
+			}
+			data, err := value.GetAny(key, cfg.DB)
+			if err != nil {
+				return fmt.Errorf("failed to get config key '%s': %w", key, err)
+			}
+			fmt.Printf("%s: %v\n", key, data)
+		}
+		return nil
+	})
+}

@@ -26,7 +26,10 @@ const Name = "halsey" // used for root command name and also in default storage 
 // Version set by build script
 var Version string
 
-var cleanUpFuncs []func() error
+var (
+	cleanUpFuncs []func() error
+	mainCtx      context.Context
+)
 
 func main() {
 	defer cleanup()
@@ -43,11 +46,6 @@ func main() {
 			&cli.StringFlag{
 				Name:  "storage",
 				Usage: "override storage `DIR`. Default is ~/." + Name,
-			},
-			&cli.BoolFlag{
-				Name:    "updatecommands",
-				Aliases: []string{"uc"},
-				Usage:   "update command definitions",
 			},
 		},
 		Commands: []*cli.Command{
@@ -69,7 +67,8 @@ func main() {
 		},
 	}
 
-	if err := app.Run(context.Background(), os.Args); err != nil {
+	mainCtx = context.Background()
+	if err := app.Run(mainCtx, os.Args); err != nil {
 		fmt.Println(err)
 	}
 }

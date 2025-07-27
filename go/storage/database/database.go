@@ -3,11 +3,13 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 
 	"halsey/go/storage/storagepath"
 
+	"github.com/Data-Corruption/lmdb-go/lmdb"
 	"github.com/Data-Corruption/lmdb-go/wrap"
 )
 
@@ -77,4 +79,29 @@ func New(ctx context.Context) (*wrap.DB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+// helper function for basic txn ops
+
+func MarshalAndPut(txn *lmdb.Txn, dbi lmdb.DBI, key []byte, value any) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	if err := txn.Put(dbi, key, data, 0); err != nil {
+		return err
+	}
+	return nil
+}
+
+// lmdb.IsNotFound(err) will be true if the key was not found in the database.
+func GetAndUnmarshal(txn *lmdb.Txn, dbi lmdb.DBI, key []byte, value any) error {
+	buf, err := txn.Get(dbi, key)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(buf, value); err != nil {
+		return err
+	}
+	return nil
 }

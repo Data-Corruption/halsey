@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"halsey/go/storage/config"
+	"strconv"
 
 	"github.com/urfave/cli/v3"
 )
@@ -21,6 +22,27 @@ var Config = &cli.Command{
 					return fmt.Errorf("no configuration found in context")
 				}
 				return cfg.Print()
+			},
+		},
+		{
+			Name:  "port",
+			Usage: "Set the server port `<port>`",
+			Action: func(ctx context.Context, cmd *cli.Command) error {
+				port := cmd.Args().Get(0)
+				if port == "" {
+					return fmt.Errorf("port cannot be empty")
+				}
+				// convert port to int
+				portInt, err := strconv.Atoi(port)
+				if err != nil {
+					return fmt.Errorf("invalid port: %w", err)
+				}
+				// set port in config
+				if err := config.Set(ctx, "port", portInt); err != nil {
+					return fmt.Errorf("failed to set port: %w", err)
+				}
+				fmt.Printf("Port set to %d\n", portInt)
+				return nil
 			},
 		},
 		{

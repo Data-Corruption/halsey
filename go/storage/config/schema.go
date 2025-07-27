@@ -15,14 +15,6 @@ type Example struct {
 }
 */
 
-// AutoExpandBlacklists is a struct that contains lists of user IDs that have opted out of auto-expanding.
-type AutoExpandBlacklists struct {
-	Twitter   []string `json:"twitter"`
-	Instagram []string `json:"instagram"`
-	Reddit    []string `json:"reddit"`
-	Shorts    []string `json:"shorts"`
-}
-
 // Version is the current version of the schema
 const Version = "v1.0.0"
 
@@ -34,20 +26,20 @@ type schema map[string]valueInterface
 // and migration funcs for it in `migration.go`. The newest version is assumed to be the current version.
 var SchemaRecord = map[string]schema{
 	"v1.0.0": {
-		"version":              &value[string]{"v1.0.0"},
-		"logLevel":             &value[string]{"warn"},
-		"port":                 &value[int]{8080},
-		"useTLS":               &value[bool]{false},
-		"tlsKeyPath":           &value[string]{""},
-		"tlsCertPath":          &value[string]{""},
-		"updateNotify":         &value[bool]{true},
-		"lastUpdateCheck":      &value[string]{time.Now().Format(time.RFC3339)},
-		"updateAvailable":      &value[bool]{false},
-		"autoExpandBlacklists": &value[AutoExpandBlacklists]{AutoExpandBlacklists{}},
-		"botToken":             &value[string]{""},           // WARNING: if you change this, update the print func in config.go
-		"botChannelID":         &value[string]{""},           // internal channel for privileged updates, etc.
-		"backupPassword":       &value[string]{""},           // WARNING: if you change this, update the print func in config.go
-		"adminUserIDs":         &value[[]string]{[]string{}}, // list of user IDs that are considered admins
+		"version":         &value[string]{"v1.0.0"},
+		"logLevel":        &value[string]{"warn"},
+		"port":            &value[int]{8080},
+		"useTLS":          &value[bool]{false},
+		"tlsKeyPath":      &value[string]{""},
+		"tlsCertPath":     &value[string]{""},
+		"updateNotify":    &value[bool]{true},
+		"lastUpdateCheck": &value[string]{time.Now().Format(time.RFC3339)},
+		"updateAvailable": &value[bool]{false},
+		"botToken":        &value[string]{""},           // WARNING: if you change this, update the print func in config.go
+		"backupPassword":  &value[string]{""},           // WARNING: if you change this, update the print func in config.go
+		"botChannelID":    &value[string]{""},           // internal channel for privileged updates, etc.
+		"adminUserIDs":    &value[[]string]{[]string{}}, // list of user IDs that are considered admins
+		"expandBlacklist": &value[[]string]{[]string{}}, // list of user IDs that have opted out of auto-expanding.
 	},
 	/*
 		"v0.0.2": {

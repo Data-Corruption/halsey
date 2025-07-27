@@ -65,11 +65,7 @@ func BotChannel(ctx context.Context, msg string) {
 		return
 	}
 
-	if Config.BotChannelID == "" {
-		xlog.Error(ctx, "Bot channel not set")
-		return
-	}
-	botChannelID, err := snowflake.Parse(Config.BotChannelID)
+	botChannelID, err := snowflake.Parse(id)
 	if err != nil {
 		xlog.Errorf(ctx, "Error parsing bot channel ID: %s", err)
 		return

@@ -3,10 +3,9 @@ package update
 import (
 	"context"
 	"fmt"
-	"goweb/go/commands/daemon/daemon_manager"
-	"goweb/go/evil"
-	"goweb/go/storage/config"
-	"goweb/go/system/git"
+	"halsey/go/evil"
+	"halsey/go/storage/config"
+	"halsey/go/system/git"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,8 +19,8 @@ import (
 // Template variables ---------------------------------------------------------
 
 const (
-	RepoURL          = "https://github.com/Data-Corruption/goweb.git"
-	InstallScriptURL = "https://raw.githubusercontent.com/Data-Corruption/goweb/main/scripts/install.sh"
+	RepoURL          = "https://github.com/Data-Corruption/halsey.git"
+	InstallScriptURL = "https://raw.githubusercontent.com/Data-Corruption/halsey/main/scripts/install.sh"
 )
 
 // ----------------------------------------------------------------------------
@@ -53,9 +52,9 @@ func Check(ctx context.Context, version string) (bool, error) {
 	return updateAvailable, nil
 }
 
-// update checks if there is a newer version of the tool available.
+// Update checks if there is a newer version of the tool available.
 // If a newer version is available, it will stop the daemon then spawn a new process to facilitate the update.
-func update(ctx context.Context, version string) error {
+func Update(ctx context.Context, version string) error {
 	if version == "vX.X.X" {
 		fmt.Println("Dev build detected, skipping update.")
 		return nil
@@ -129,16 +128,6 @@ func update(ctx context.Context, version string) error {
 	// update config
 	if err := config.Set(ctx, "updateAvailable", false); err != nil {
 		return fmt.Errorf("failed to set updateAvailable in config: %w", err)
-	}
-
-	// restart the daemon
-	fmt.Println("Ensuring daemon is up to date by restart...")
-	manager, err := daemon_manager.FromContext(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get daemon manager: %w", err)
-	}
-	if err := manager.Restart(ctx); err != nil {
-		return fmt.Errorf("failed to restart daemon: %w", err)
 	}
 
 	return nil

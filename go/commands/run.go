@@ -1,23 +1,31 @@
-package server
+package commands
 
 import (
 	"context"
 	"fmt"
-	"goweb/go/commands/daemon/daemon_manager"
-	"goweb/go/storage/config"
+	"halsey/go/storage/config"
 	"net/http"
 
 	"github.com/Data-Corruption/stdx/xhttp"
+	"github.com/urfave/cli/v3"
 )
 
-func Run(ctx context.Context) error {
+var Run = &cli.Command{
+	Name:  "run",
+	Usage: "runs the bot",
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		return run(ctx)
+	},
+}
+
+func run(ctx context.Context) error {
 	// router
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World\n"))
 	})
 
-	// get server related stuff from config
+	// get http server related stuff from config
 	port, err := config.Get[int](ctx, "port")
 	if err != nil {
 		return fmt.Errorf("failed to get port from config: %w", err)
@@ -35,7 +43,7 @@ func Run(ctx context.Context) error {
 		return fmt.Errorf("failed to get tlsCertPath from config: %w", err)
 	}
 
-	// server
+	// http server
 	var srv *xhttp.Server
 	srv, err = xhttp.NewServer(&xhttp.ServerConfig{
 		Addr:        fmt.Sprintf(":%d", port),
@@ -43,12 +51,6 @@ func Run(ctx context.Context) error {
 		TLSKeyPath:  tlsKeyPath,
 		TLSCertPath: tlsCertPath,
 		Handler:     mux,
-		AfterListen: func() {
-			if err := daemon_manager.NotifyReady(ctx); err != nil {
-				fmt.Printf("failed to notify daemon manager: %v\n", err)
-			}
-			fmt.Printf("server is ready and listening on http://localhost%s\n", srv.Addr())
-		},
 		OnShutdown: func() {
 			fmt.Println("shutting down, cleaning up resources ...")
 		},
@@ -57,7 +59,9 @@ func Run(ctx context.Context) error {
 		return fmt.Errorf("failed to create server: %w", err)
 	}
 
-	// Start serving (blocks until exit signal or error).
+	// start bot (pass http server so it can be used in exit listener)
+
+	// start http server
 	if err := srv.Listen(); err != nil {
 		return fmt.Errorf("server stopped with error: %w", err)
 	} else {

@@ -1,14 +1,15 @@
-package update
+package commands
 
 import (
 	"context"
 	"fmt"
-	"goweb/go/storage/config"
+	"halsey/go/storage/config"
+	"halsey/go/update"
 
 	"github.com/urfave/cli/v3"
 )
 
-var Command = &cli.Command{
+var Update = &cli.Command{
 	Name:  "update",
 	Usage: "update the application or manage update settings",
 	Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -17,7 +18,7 @@ var Command = &cli.Command{
 		if !ok {
 			return fmt.Errorf("failed to get appVersion from context")
 		}
-		return update(ctx, version)
+		return update.Update(ctx, version)
 	},
 	Commands: []*cli.Command{
 		{
@@ -30,7 +31,7 @@ var Command = &cli.Command{
 					return fmt.Errorf("failed to get appVersion from context")
 				}
 
-				if updateAvailable, err := Check(ctx, version); err != nil {
+				if updateAvailable, err := update.Check(ctx, version); err != nil {
 					return fmt.Errorf("failed to check for updates: %w", err)
 				} else if updateAvailable {
 					fmt.Println("Update available!")

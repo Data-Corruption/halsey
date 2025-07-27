@@ -21,8 +21,8 @@
 
 # Replace with your GitHub repository details and app name
 OWNER="Data-Corruption"
-REPO="goweb"
-APP_NAME="goweb"
+REPO="halsey"
+APP_NAME="halsey"
 
 # Startup ---------------------------------------------------------------------
 

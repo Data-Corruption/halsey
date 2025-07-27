@@ -1,4 +1,4 @@
-package database
+package commands
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-var Command = &cli.Command{
+var Database = &cli.Command{
 	Name:    "database",
 	Aliases: []string{"db"},
 	Usage:   "Database commands",

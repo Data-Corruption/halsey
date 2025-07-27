@@ -6,15 +6,18 @@ import (
 	"errors"
 	"path/filepath"
 
-	"goweb/go/storage/storagepath"
+	"halsey/go/storage/storagepath"
 
 	"github.com/Data-Corruption/lmdb-go/wrap"
 )
 
 const (
 	ConfigDBIName = "config"
+	GuildsDBIName = "guilds"
+	AssetsDBIName = "assets"
 	// Add more DBI names as needed, e.g., UserDBIName, SessionDBIName, etc.
 	// WARNING: If you add more DBIs you'll need to clean and reinitialize the database from scratch pretty sure.
+	// Also update the New function below to include them in the DBI slice.
 )
 
 type ctxKey struct{}
@@ -35,7 +38,7 @@ func New(ctx context.Context) (*wrap.DB, error) {
 	if path == "" {
 		return nil, errors.New("nexus data path not set before database initialization")
 	}
-	db, _, err := wrap.New(filepath.Join(path, "db"), []string{ConfigDBIName}) // If you add more DBIs, include them in the slice
+	db, _, err := wrap.New(filepath.Join(path, "db"), []string{ConfigDBIName, GuildsDBIName, AssetsDBIName})
 	if err != nil {
 		db.Close()
 		return nil, err

@@ -7,12 +7,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"goweb/go/commands/daemon"
-	"goweb/go/commands/daemon/daemon_manager"
-	"goweb/go/commands/database"
-	"goweb/go/commands/update"
-	"goweb/go/storage/config"
-	"goweb/go/storage/storagepath"
+	"halsey/go/commands"
+	"halsey/go/storage/config"
+	"halsey/go/storage/database"
+	"halsey/go/storage/storagepath"
+	"halsey/go/update"
 
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/urfave/cli/v3"
@@ -20,8 +19,7 @@ import (
 
 // Template variables ---------------------------------------------------------
 
-// Replace with your application name
-const Name = "goweb" // used for root command name and also in default storage path
+const Name = "halsey" // used for root command name and also in default storage path
 
 // ----------------------------------------------------------------------------
 
@@ -47,11 +45,17 @@ func main() {
 				Name:  "storage",
 				Usage: "override storage `DIR`. Default is ~/." + Name,
 			},
+			&cli.BoolFlag{
+				Name:    "updatecommands",
+				Aliases: []string{"uc"},
+				Usage:   "update command definitions",
+			},
 		},
 		Commands: []*cli.Command{
-			update.Command,
-			database.Command,
-			daemon.Command,
+			commands.Run,
+			commands.Update,
+			commands.Database,
+			commands.Config,
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 			return startup(ctx, cmd)
@@ -155,23 +159,10 @@ func startup(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 				return ctx, fmt.Errorf("failed to check for updates: %w", err)
 			}
 			if updateAvailable {
-				fmt.Println("Update available! Run 'goweb update check' to see details.")
+				fmt.Println("Update available! Run 'halsey update check' to see details.")
 			}
 		}
 	}
-
-	// Init daemon manager
-	manager := &daemon_manager.DaemonManager{
-		PIDFilePath:   filepath.Join(storagePath, "daemon.pid"),
-		ReadyTimeout:  10 * time.Second,
-		StopTimeout:   10 * time.Second,
-		DaemonRunArgs: []string{"daemon", "run"},
-	}
-	ctx, err = daemon_manager.IntoContext(ctx, manager)
-	if err != nil {
-		return ctx, fmt.Errorf("failed to insert daemon manager into context: %w", err)
-	}
-	xlog.Debug(ctx, "Daemon manager initialized")
 
 	// Init other components
 

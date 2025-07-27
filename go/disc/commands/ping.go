@@ -10,7 +10,8 @@ import (
 )
 
 var pingCommand = BotCommand{
-	IsGlobal: true,
+	IsGlobal:     true,
+	RequireAdmin: false,
 	Data: discord.SlashCommandCreate{
 		Name:        "ping",
 		Description: "Check if the bot is responsive.",

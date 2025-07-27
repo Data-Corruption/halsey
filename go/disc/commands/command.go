@@ -9,9 +9,10 @@ import (
 
 // Command struct for creating commands. See ping.go for an example.
 type BotCommand struct {
-	IsGlobal bool
-	Data     discord.ApplicationCommandCreate
-	Handler  func(ctx context.Context, event *events.ApplicationCommandInteractionCreate)
+	IsGlobal     bool
+	RequireAdmin bool // if true, only admins can use this command
+	Data         discord.ApplicationCommandCreate
+	Handler      func(ctx context.Context, event *events.ApplicationCommandInteractionCreate)
 }
 
 var List map[string]BotCommand = make(map[string]BotCommand)

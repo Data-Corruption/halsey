@@ -3,9 +3,9 @@ package update
 import (
 	"context"
 	"fmt"
-	"halsey/go/evil"
 	"halsey/go/storage/config"
 	"halsey/go/system/git"
+	"halsey/go/x"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -113,7 +113,7 @@ func Update(ctx context.Context, version string) error {
 	}
 
 	// run the install command
-	pipeline := fmt.Sprintf("curl -sSfL %s | %sbash -s -- latest %q", InstallScriptURL, evil.Ternary(runSudo, "sudo ", ""), filepath.Dir(selfPath))
+	pipeline := fmt.Sprintf("curl -sSfL %s | %sbash -s -- latest %q", InstallScriptURL, x.Ternary(runSudo, "sudo ", ""), filepath.Dir(selfPath))
 	xlog.Debugf(ctx, "Running update command: %s", pipeline)
 
 	iCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)

@@ -31,7 +31,8 @@ var backupCommand = BotCommand{
 			},
 		},
 	},
-	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) {
+	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) error {
+		return nil
 		/*
 			data := event.SlashCommandInteractionData()
 

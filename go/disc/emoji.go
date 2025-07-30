@@ -25,7 +25,7 @@ func GetAppEmojis(ctx context.Context) []string {
 			return
 		}
 		for _, emoji := range emojis {
-			strID := emoji.ID.String()
+			strID := emoji.String()
 			if strID[0] == '<' && strID[len(strID)-1] == '>' {
 				strID = strID[1 : len(strID)-1]
 			}

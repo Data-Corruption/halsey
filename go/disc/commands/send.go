@@ -2,8 +2,8 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"halsey/go/disc"
-	"halsey/go/disc/respond"
 	"halsey/go/storage/config"
 	"sync/atomic"
 	"time"
@@ -29,26 +29,25 @@ var sendCommand = BotCommand{
 			},
 		},
 	},
-	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) {
+	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) error {
 		if busy.Load() {
-			respond.Normal(ctx, event, "Hold on, I'm a little busy", true)
-			return
+			return resMessageStr(ctx, event, "Hold on, I'm a little busy", true)
 		}
 		busy.Store(true)
 		defer busy.Store(false)
-		respond.Temp(ctx, event, "lmao, you wish", true, 5*time.Second)
-		time.Sleep(25 * time.Second)
+		if err := resMessageStr(ctx, event, "lmao, you wish", true); err != nil {
+			return fmt.Errorf("failed to respond: %w", err)
+		}
+		time.Sleep(20 * time.Second)
 
 		biohURL, err := config.Get[string](ctx, "biohURL")
 		if err != nil {
-			xlog.Errorf(ctx, "Error getting biohURL: %s", err)
-			return
+			return fmt.Errorf("failed to get biohURL: %w", err)
 		}
 
 		dmChannel, err := disc.Client.Rest.CreateDMChannel(event.User().ID)
 		if err != nil {
-			xlog.Errorf(ctx, "Error creating DM channel: %s", err)
-			return
+			return fmt.Errorf("failed to create DM channel: %w", err)
 		}
 
 		if _, err := disc.Client.Rest.CreateMessage(dmChannel.ID(), discord.NewMessageCreateBuilder().
@@ -68,6 +67,7 @@ var sendCommand = BotCommand{
 		}
 
 		xlog.Infof(ctx, "Sent nudes to user %s", event.User().ID)
+		return nil
 	},
 }
 

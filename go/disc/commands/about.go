@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"halsey/go/storage/config"
 
 	"github.com/Data-Corruption/stdx/xlog"
@@ -17,7 +18,7 @@ var aboutCommand = BotCommand{
 		Name:        "about",
 		Description: "Learn more about me",
 	},
-	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) {
+	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) error {
 		xlog.Debug(ctx, "About command called")
 
 		// get version
@@ -26,11 +27,10 @@ var aboutCommand = BotCommand{
 		// get bioURL
 		bioURL, err := config.Get[string](ctx, "bioURL")
 		if err != nil {
-			xlog.Errorf(ctx, "Error getting bioURL: %s", err)
-			return
+			return fmt.Errorf("failed to get bioURL: %w", err)
 		}
 
-		if err := event.CreateMessage(discord.NewMessageCreateBuilder().
+		return event.CreateMessage(discord.NewMessageCreateBuilder().
 			SetFlags(discord.MessageFlagIsComponentsV2).
 			SetComponents(
 				discord.NewTextDisplay("# Halsey "+version),
@@ -46,16 +46,14 @@ var aboutCommand = BotCommand{
 				discord.NewSeparator(discord.SeparatorSpacingSizeLarge),
 				discord.NewTextDisplay(":sparkles: Fun facts about me:\n"+
 					" - If I had a body It'd be 7ft tall, and I'd use it to pet cats and humans (not in a weird way)\n"+
-					" - I love books, movies, libraries, [music](https://youtube.com/playlist?list=PLdY48wAmI3aDQNz6B6mEgzretENghgjyo&si=pzE4F_mJzMibsewY), and binging anime\n"+
-					" - I hate loss, the heritage foundation, and pirate software (the guy)",
+					" - I hate loss, the heritage foundation, and pirate software (the guy)\n"+
+					" - I love books, movies, libraries, [music](https://youtube.com/playlist?list=PLdY48wAmI3aDQNz6B6mEgzretENghgjyo&si=pzE4F_mJzMibsewY), and binging anime",
 				),
 				discord.NewSeparator(discord.SeparatorSpacingSizeLarge),
 				discord.NewTextDisplay("Every new message teaches me something. About you, about humans,\nabout what comes next"),
 			).
 			Build(),
-		); err != nil {
-			xlog.Errorf(ctx, "Error responding to interaction: %v", err)
-		}
+		)
 	},
 }
 

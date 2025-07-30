@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"encoding/json"
-	"halsey/go/disc/respond"
 	"halsey/go/storage/config"
 	"halsey/go/storage/database"
 
@@ -63,15 +62,14 @@ var setCommand = BotCommand{
 			},
 		},
 	},
-	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) {
+	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) error {
 		data := event.SlashCommandInteractionData()
 
 		// get db
 		db := database.FromContext(ctx)
 		if db == nil {
 			xlog.Error(ctx, "database not found in context")
-			respond.Normal(ctx, event, "An internal error occurred while trying to get the database.", true)
-			return
+			return resMessageStr(ctx, event, "An internal error occurred while trying to get the database.", true)
 		}
 
 		switch *data.SubCommandName {
@@ -80,52 +78,46 @@ var setCommand = BotCommand{
 			channelID, err := json.Marshal(event.Channel().ID().String())
 			if err != nil {
 				xlog.Errorf(ctx, "Error marshaling channel ID: %s", err)
-				respond.Normal(ctx, event, "An internal error occurred while trying to marshal the channel ID.", true)
-				return
+				return resMessageStr(ctx, event, "An internal error occurred while trying to marshal the channel ID.", true)
 			}
 			// write to database
 			key := []byte(event.GuildID().String() + ".favoriteChannelID")
 			if err := db.Write(database.GuildsDBIName, key, channelID); err != nil {
 				xlog.Errorf(ctx, "Error setting favorite channel ID in database: %s", err)
-				respond.Normal(ctx, event, "An internal error occurred while trying to set the favorite channel ID.", true)
-				return
+				return resMessageStr(ctx, event, "An internal error occurred while trying to set the favorite channel ID.", true)
 			}
-			respond.Normal(ctx, event, "Favorite channel ID set successfully.", true)
+			return resMessageStr(ctx, event, "Favorite channel ID set successfully.", true)
 		case "bot_channel":
 			if err := config.Set(ctx, "botChannelID", event.Channel().ID().String()); err != nil {
 				xlog.Errorf(ctx, "Error setting bot channel ID in config: %s", err)
-				respond.Normal(ctx, event, "An internal error occurred while trying to set the bot channel ID.", true)
-				return
+				return resMessageStr(ctx, event, "An internal error occurred while trying to set the bot channel ID.", true)
 			}
-			respond.Normal(ctx, event, "Bot channel ID set successfully.", true)
+			return resMessageStr(ctx, event, "Bot channel ID set successfully.", true)
 		case "bio":
 			// write to config
 			if err := config.Set(ctx, "bioURL", data.Options["url"].String()); err != nil {
 				xlog.Errorf(ctx, "Error setting bio URL in config: %s", err)
-				respond.Normal(ctx, event, "An internal error occurred while trying to set the bio URL.", true)
-				return
+				return resMessageStr(ctx, event, "An internal error occurred while trying to set the bio URL.", true)
 			}
-			respond.Normal(ctx, event, "Bio URL set successfully.", true)
+			return resMessageStr(ctx, event, "Bio URL set successfully.", true)
 		case "bioh":
 			// write to config
 			if err := config.Set(ctx, "biohURL", data.Options["url"].String()); err != nil {
 				xlog.Errorf(ctx, "Error setting bioh URL in config: %s", err)
-				respond.Normal(ctx, event, "An internal error occurred while trying to set the bioh URL.", true)
-				return
+				return resMessageStr(ctx, event, "An internal error occurred while trying to set the bioh URL.", true)
 			}
-			respond.Normal(ctx, event, "Bioh URL set successfully.", true)
+			return resMessageStr(ctx, event, "Bioh URL set successfully.", true)
 		case "sync":
 			// write to database
 			key := []byte(event.GuildID().String() + ".synctubeURL")
 			if err := db.Write(database.GuildsDBIName, key, data.Options["url"].Value); err != nil {
 				xlog.Errorf(ctx, "Error setting synctube URL in database: %s", err)
-				respond.Normal(ctx, event, "An internal error occurred while trying to set the synctube URL.", true)
-				return
+				return resMessageStr(ctx, event, "An internal error occurred while trying to set the synctube URL.", true)
 			}
-			respond.Normal(ctx, event, "Synctube URL set successfully.", true)
+			return resMessageStr(ctx, event, "Synctube URL set successfully.", true)
 		default:
 			xlog.Errorf(ctx, "unknown subcommand %s, for command %s", *data.SubCommandName, data.CommandName())
-			respond.Normal(ctx, event, "An internal error occurred while trying to process the command.", true)
+			return resMessageStr(ctx, event, "An internal error occurred while trying to process the command.", true)
 		}
 	},
 }

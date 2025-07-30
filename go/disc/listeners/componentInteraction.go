@@ -11,7 +11,6 @@ import (
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
-	"github.com/disgoorg/snowflake/v2"
 )
 
 func OnComponentInteraction(ctx context.Context, event *events.ComponentInteractionCreate) {
@@ -28,57 +27,36 @@ func OnComponentInteraction(ctx context.Context, event *events.ComponentInteract
 			SetEphemeral(true).
 			Build()
 
-		if len(parts) < 4 {
+		if len(parts) < 3 {
 			xlog.Errorf(ctx, "remove_favorite interaction without content copy message ID: %s", event.Data.CustomID())
 			event.CreateMessage(genericErr)
 			return
 		}
+		sourceMessageID := parts[1]
+		sourceChannelID := parts[2]
 
-		// content copy message ID
-		cMsgIdStr := parts[1]
-		cMsgID, err := snowflake.Parse(cMsgIdStr)
-		if err != nil {
-			xlog.Errorf(ctx, "Error parsing content copy message ID %s: %s", cMsgIdStr, err)
-			event.CreateMessage(genericErr)
-			return
-		}
-		// source message ID
-		sMsgIdStr := parts[2]
-		sChnIdStr := parts[3]
-		// author / controls message ID
-		aMsgID := event.Message.ID
-
-		// delete both
-		if err := disc.Client.Rest.DeleteMessage(event.Message.ChannelID, cMsgID); err != nil {
-			xlog.Errorf(ctx, "Error deleting content copy message %s: %s", cMsgID, err)
-			event.CreateMessage(genericErr)
-			return
-		}
-		if err := disc.Client.Rest.DeleteMessage(event.Message.ChannelID, aMsgID); err != nil {
-			xlog.Errorf(ctx, "Error deleting author message %s: %s", aMsgID, err)
+		// delete favorite message
+		if err := disc.Client.Rest.DeleteMessage(event.Message.ChannelID, event.Message.ID); err != nil {
+			xlog.Errorf(ctx, "Error deleting author message %s: %s", event.Message.ID, err)
 			event.CreateMessage(genericErr)
 			return
 		}
 
-		// remove sMsgIdStr from database
+		// remove sourceMessageID from database
 		db := database.FromContext(ctx)
 		if db == nil {
-			xlog.Errorf(ctx, "Error getting database: %s", err)
+			xlog.Error(ctx, "Database not found in context")
 			event.CreateMessage(genericErr)
 			return
 		}
-		if err := db.Delete(database.FavoritesDBIName, []byte(sMsgIdStr)); err != nil {
-			xlog.Errorf(ctx, "Error deleting favorite message ID %s from database: %s", sMsgIdStr, err)
+		if err := db.Delete(database.FavoritesDBIName, []byte(sourceMessageID)); err != nil {
+			xlog.Errorf(ctx, "Error deleting favorite message ID %s from database: %s", sourceMessageID, err)
 			event.CreateMessage(genericErr)
 			return
 		}
-		xlog.Infof(ctx, "Removed favorite message %s from channel %s", sMsgIdStr, event.Message.ChannelID)
-		respond.BotChannel(ctx, fmt.Sprintf("Unfavorited https://discord.com/channels/%s/%s/%s", event.GuildID(), sChnIdStr, sMsgIdStr))
-		event.CreateMessage(discord.NewMessageCreateBuilder().
-			SetContent("Unfavorited!").
-			SetEphemeral(true).
-			Build(),
-		)
+		xlog.Infof(ctx, "Removed favorite message %s from channel %s", sourceMessageID, event.Message.ChannelID)
+		respond.BotChannel(ctx, fmt.Sprintf("Unfavorited https://discord.com/channels/%s/%s/%s", event.GuildID(), sourceChannelID, sourceMessageID))
+		event.Respond(discord.InteractionResponseTypeDeferredUpdateMessage, nil)
 	default:
 		xlog.Warnf(ctx, "Unknown component interaction: %s", event.Data.CustomID())
 	}

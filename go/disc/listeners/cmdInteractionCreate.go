@@ -3,11 +3,11 @@ package listeners
 import (
 	"context"
 	"halsey/go/disc/commands"
-	"halsey/go/disc/respond"
 	"halsey/go/storage/config"
 	"slices"
 
 	"github.com/Data-Corruption/stdx/xlog"
+	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
 )
 
@@ -22,7 +22,9 @@ func OnCommandInteraction(ctx context.Context, event *events.ApplicationCommandI
 	}
 	// bot check
 	if command.FilterBots && event.User().Bot {
-		respond.Normal(ctx, event, "Bots cannot use this command.", false)
+		if err := event.Respond(discord.InteractionResponseTypeCreateMessage, discord.NewMessageCreateBuilder().SetContent("Bots cannot use this command.").SetEphemeral(true).Build()); err != nil {
+			xlog.Errorf(ctx, "Error responding to interaction: %s", err)
+		}
 		return
 	}
 	// admin check
@@ -36,9 +38,15 @@ func OnCommandInteraction(ctx context.Context, event *events.ApplicationCommandI
 		userID := event.User().ID.String()
 		if !slices.Contains(adminUserIDs, userID) {
 			xlog.Warnf(ctx, "User %s is not an admin", userID)
-			respond.Normal(ctx, event, "You do not have permission to use this command.", true)
+			if err := event.Respond(discord.InteractionResponseTypeCreateMessage, discord.NewMessageCreateBuilder().SetContent("You do not have permission to use this command.").SetEphemeral(true).Build()); err != nil {
+				xlog.Errorf(ctx, "Error responding to interaction: %s", err)
+			}
 			return
 		}
 	}
-	go command.Handler(ctx, event)
+	go func() {
+		if err := command.Handler(ctx, event); err != nil {
+			xlog.Errorf(ctx, "Error handling command %s: %s", cmdName, err)
+		}
+	}()
 }

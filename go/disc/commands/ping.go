@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"halsey/go/disc/respond"
 
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/disgoorg/disgo/discord"
@@ -17,9 +16,9 @@ var pingCommand = BotCommand{
 		Name:        "ping",
 		Description: "Check if the bot is responsive.",
 	},
-	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) {
+	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) error {
 		xlog.Debug(ctx, "Ping command called")
-		respond.Normal(ctx, event, "Pong!", true)
+		return resMessage(ctx, event, discord.NewMessageCreateBuilder().SetContent("Pong!").Build())
 	},
 }
 

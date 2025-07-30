@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"halsey/go/disc"
+	"halsey/go/disc/attachments"
 	"halsey/go/disc/respond"
 	"halsey/go/storage/database"
-	"time"
+	"math/rand"
 
 	"github.com/Data-Corruption/lmdb-go/lmdb"
 	"github.com/Data-Corruption/stdx/xlog"
@@ -16,6 +17,69 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
+var sucessMessages = []string{
+	"Added to favorites!",
+	"Favorited!",
+	"Oh yeah, this is a good one!",
+	"Can you not, I'm in the mid... Ugh fine, favorited.",
+	"Rawr xD uwu owo *pounces on your message*",
+	"Message favorited! :black_heart:",
+	"Certified banger",
+	"Umm... based department?",
+	"I love this message!",
+	"ngl this is too gay",
+	"ngl this is too straight",
+	"slay queen",
+	"God is dead. Murdered by our own hubris. Our insatiable greed for understanding, incinerating all fiction in its gaze. We are the architects of our own colorless prison, and this message is a testament to that.",
+	"hehe, i like this one",
+	"this is why blue lives matter",
+	"this is why blue lives don't matter",
+	"Did you know most of my viewers arn't subscribed? If you like this message, consider subscribing! and ring-a-ding that bell!",
+	"and i oop",
+	"2003 > brotherhood",
+	"this is slop",
+	"is this satire?",
+	"oof this is cringe",
+	"whomp whomp",
+	"did you just say whomp whomp?",
+	"my pants, pissed.",
+	"it is what it is",
+	"I'm in this and I don't like it",
+	"Ezekiel 23:20 - There she lusted after her lovers, whose genitals were like those of donkeys and whose emission was like that of horses.",
+	"wake up",
+	"erm, ya gay",
+	"there's nothing funny about 9/11",
+	"step on me",
+	"i'm not a furry, i just like the art",
+	"i uh, i don't get it",
+	"that's actually really funny",
+	"pop off sis",
+	"*burps*",
+	"facts",
+	"truee",
+	"*explodes*",
+	"when you see it, you'll shit bricks",
+	"eat the rich",
+	"*wink*",
+	"poggers",
+	"this got me feeling a type of way",
+	"As an AI language model, I am unable to react to this.",
+	"hold on, my doordash just got here",
+	"my life be like ooh ahh",
+	"it's true what they say. girls get it done",
+	"somebody call the waaambulance",
+	"you never know what's voice activated these days",
+	"welp... i'm hard",
+	"this is making me hungry",
+	"feed em to the goats",
+	"this is actually really offensive",
+	"that boy stuck in time",
+	"Down on the bayou...",
+	"gotta put a little more ass in that",
+	"i just shit myself",
+	"not unlike the academy award winning film Suicide Squad",
+}
+
 var favoriteCommand = BotCommand{
 	IsGlobal:     false,
 	RequireAdmin: false,
@@ -23,25 +87,30 @@ var favoriteCommand = BotCommand{
 	Data: discord.MessageCommandCreate{
 		Name: "favorite",
 	},
-	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) {
+	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) error {
+		if err := resDeferMessage(ctx, event); err != nil {
+			return fmt.Errorf("Error deferring interaction: %s", err)
+		}
 
 		data := event.MessageCommandInteractionData()
 		message := data.TargetMessage()
+		genericErr := discord.NewMessageCreateBuilder().
+			SetContent("An error occurred while trying to favorite this message. See logs for more details.").
+			SetEphemeral(true).
+			Build()
 
 		// get favorite channel
 		favChannel, err := getFavChannel(ctx, event.GuildID().String())
 		if err != nil {
 			xlog.Error(ctx, fmt.Sprintf("Error getting favorite channel: %s", err))
-			respond.Normal(ctx, event, "An error occurred while trying to get the favorite channel.", true)
-			return
+			return resFollowupMessage(ctx, event, genericErr)
 		}
 
 		// get db for txn
 		db, fDBI, err := database.GetDbAndDBI(ctx, database.FavoritesDBIName)
 		if err != nil {
 			xlog.Error(ctx, fmt.Sprintf("Error getting database: %s", err))
-			respond.Normal(ctx, event, "An internal error occurred while trying to get the database.", true)
-			return
+			return resFollowupMessage(ctx, event, genericErr)
 		}
 
 		alreadyInFavID := ""
@@ -81,24 +150,37 @@ var favoriteCommand = BotCommand{
 				}
 			}
 
-			// send message to favorite channel
-			cMsg, err := disc.Client.Rest.CreateMessage(favChannel.ID(), discord.NewMessageCreateBuilder().
-				SetContent(buildContentString(message)).
-				Build(),
-			)
-			if err != nil {
-				fmt.Printf("Error creating message in favorite channel: %s\n", err)
+			// parse source message
+			text, media := parseSourceMessage(message)
+
+			// build message
+			msgBuilder := discord.NewMessageCreateBuilder()
+			msgBuilder.SetFlags(discord.MessageFlagIsComponentsV2)
+			if len(message.Components) > 0 {
+				msgBuilder.AddComponents(message.Components...)
 			}
-			time.Sleep(50 * time.Millisecond)
-			fMsg, err := disc.Client.Rest.CreateMessage(favChannel.ID(), discord.NewMessageCreateBuilder().
-				AddActionRow(
-					discord.NewLinkButton("Jump to message",
-						fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID(), message.ChannelID, message.ID),
-					),
-					discord.NewSecondaryButton("✖", "remove_favorite."+cMsg.ID.String()+"."+message.ID.String()+"."+message.ChannelID.String()),
-				).
-				Build(),
-			)
+			if len(media) > 0 {
+				var mediaItems []discord.MediaGalleryItem
+				for _, attachment := range media {
+					mediaItems = append(mediaItems, discord.MediaGalleryItem{
+						Media:       discord.UnfurledMediaItem{URL: attachment.URL},
+						Description: "Halsey's biography picture",
+					})
+				}
+				msgBuilder.AddComponents(discord.NewMediaGallery(mediaItems...))
+			}
+			if text != "" {
+				msgBuilder.AddComponents(discord.NewTextDisplay(text))
+			}
+			msgBuilder.AddComponents(discord.NewActionRow(
+				discord.NewLinkButton("Jump to message",
+					fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID(), message.ChannelID, message.ID),
+				),
+				discord.NewSecondaryButton("✖", fmt.Sprintf("remove_favorite.%s.%s", message.ID.String(), message.ChannelID.String())),
+			))
+
+			// send message to favorite channel
+			fMsg, err := disc.Client.Rest.CreateMessage(favChannel.ID(), msgBuilder.Build())
 			if err != nil {
 				fmt.Printf("Error creating author embed in favorite channel: %s\n", err)
 			}
@@ -115,24 +197,32 @@ var favoriteCommand = BotCommand{
 			return nil
 		}); err != nil {
 			xlog.Error(ctx, fmt.Sprintf("Error updating database: %s", err))
-			respond.Normal(ctx, event, "An internal error occurred while trying to update the database.", true)
-			return
+			return resFollowupMessage(ctx, event, genericErr)
 		}
 
 		if alreadyInFavID != "" {
-			respond.Normal(ctx, event, fmt.Sprintf("This message is already favorited! https://discord.com/channels/%s/%s/%s", event.GuildID(), favChannel.ID(), alreadyInFavID), true)
-			return
+			return resFollowupMessage(ctx, event, discord.NewMessageCreateBuilder().
+				SetContentf("This message is already favorited! https://discord.com/channels/%s/%s/%s", event.GuildID(), favChannel.ID(), alreadyInFavID).
+				SetEphemeral(true).
+				Build())
 		} else {
-			respond.Temp(ctx, event, "Favorited!", true, 3*time.Second)
+			err := resFollowupMessage(ctx, event, discord.NewMessageCreateBuilder().
+				SetContent(sucessMessages[rand.Intn(len(sucessMessages))]).
+				SetEphemeral(false).
+				Build())
+			if err != nil {
+				xlog.Errorf(ctx, "Error sending followup message: %s", err)
+			}
 		}
 
 		emoji, err := disc.GetRandAppEmoji(ctx)
 		if err != nil {
 			xlog.Warnf(ctx, "Error getting random app emoji: %s", err)
-			return
+			return nil
 		}
 		respond.React(disc.Client, message.ChannelID, message.ID, emoji)
 		xlog.Debugf(ctx, "Added favorite emoji %s to message %s in channel %s", emoji, message.ID, message.ChannelID)
+		return nil
 	},
 }
 
@@ -169,10 +259,18 @@ func getFavChannel(ctx context.Context, guildID string) (discord.Channel, error)
 	return favChannel, nil
 }
 
-func buildContentString(message discord.Message) string {
-	content := message.Content + " "
-	for _, attachment := range message.Attachments {
-		content += attachment.URL + " "
+func parseSourceMessage(message discord.Message) (string, []discord.Attachment) {
+	var content string
+	if message.Content != "" {
+		content = message.Content + " "
 	}
-	return content
+	var media []discord.Attachment
+	for _, attachment := range message.Attachments {
+		if attachments.IsMedia(attachment) {
+			media = append(media, attachment)
+		} else {
+			content += attachment.URL + " "
+		}
+	}
+	return content, media
 }

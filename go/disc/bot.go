@@ -5,4 +5,4 @@ import (
 )
 
 // needed global, probs a way around this but not sure how
-var Client bot.Client
+var Client *bot.Client

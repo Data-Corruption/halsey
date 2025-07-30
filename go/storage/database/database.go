@@ -81,7 +81,9 @@ func New(ctx context.Context) (*wrap.DB, error) {
 	return db, nil
 }
 
-// helper function for basic txn ops
+// helper funcs
+
+// basic txn ops
 
 func MarshalAndPut(txn *lmdb.Txn, dbi lmdb.DBI, key []byte, value any) error {
 	data, err := json.Marshal(value)
@@ -104,4 +106,18 @@ func GetAndUnmarshal(txn *lmdb.Txn, dbi lmdb.DBI, key []byte, value any) error {
 		return err
 	}
 	return nil
+}
+
+// getting db stuff
+
+func GetDbAndDBI(ctx context.Context, dbiName string) (*wrap.DB, lmdb.DBI, error) {
+	db := FromContext(ctx)
+	if db == nil {
+		return nil, 0, errors.New("database not found in context")
+	}
+	dbi, ok := db.GetDBis()[dbiName]
+	if !ok {
+		return nil, 0, errors.New("DBI not found in database: " + dbiName)
+	}
+	return db, dbi, nil
 }

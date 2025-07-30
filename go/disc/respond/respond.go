@@ -8,18 +8,18 @@ import (
 	"time"
 
 	"github.com/Data-Corruption/stdx/xlog"
+	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
 	"github.com/disgoorg/snowflake/v2"
 )
 
 func Normal(ctx context.Context, event *events.ApplicationCommandInteractionCreate, content string, ephemeral bool) {
-	err := event.CreateMessage(discord.NewMessageCreateBuilder().
+	if err := event.CreateMessage(discord.NewMessageCreateBuilder().
 		SetContent(content).
 		SetEphemeral(ephemeral).
 		Build(),
-	)
-	if err != nil {
+	); err != nil {
 		xlog.Errorf(ctx, "Error responding to interaction: %s", err)
 	}
 }
@@ -35,7 +35,7 @@ func Temp(ctx context.Context, event *events.ApplicationCommandInteractionCreate
 	}
 	go func() {
 		time.Sleep(duration)
-		if err := disc.Client.Rest().DeleteInteractionResponse(disc.Client.ApplicationID(), event.Token()); err != nil {
+		if err := disc.Client.Rest.DeleteInteractionResponse(disc.Client.ApplicationID, event.Token()); err != nil {
 			xlog.Errorf(ctx, "Error deleting interaction response: %s", err)
 		}
 	}()
@@ -43,14 +43,23 @@ func Temp(ctx context.Context, event *events.ApplicationCommandInteractionCreate
 
 func Link(ctx context.Context, event *events.ApplicationCommandInteractionCreate, label, url string, ephemeral bool) {
 	xlog.Infof(ctx, "Responding with link: %s\n", url)
-	err := event.CreateMessage(discord.NewMessageCreateBuilder().
+	if err := event.CreateMessage(discord.NewMessageCreateBuilder().
 		SetEphemeral(ephemeral).
 		AddActionRow(discord.NewLinkButton(label, url)).
 		Build(),
-	)
-	if err != nil {
+	); err != nil {
 		xlog.Errorf(ctx, "Error responding to interaction with link: %s", err)
 	}
+}
+
+// Emoji is the unicode emoji or custom emoji ID e.g.
+// a:name:1399243822592163930 (animated) or name:1399243822592163930 (static).
+// To get that ID, for uploaded bot emojis, you can copy it from where you uploaded it.
+// For the rest you can message a channel with \:name: and it will return the full ID
+// in the message. Why can't you right click and copy ID like everything else? I don't
+// know, discord is weird. This glorified wrapper is mostly just for this comment lmao
+func React(client *bot.Client, channelID snowflake.ID, messageID snowflake.ID, emoji string) error {
+	return client.Rest.AddReaction(channelID, messageID, emoji)
 }
 
 func BotChannel(ctx context.Context, msg string) {
@@ -70,7 +79,7 @@ func BotChannel(ctx context.Context, msg string) {
 		xlog.Errorf(ctx, "Error parsing bot channel ID: %s", err)
 		return
 	}
-	if _, err := disc.Client.Rest().CreateMessage(botChannelID, discord.NewMessageCreateBuilder().SetContent(msg).Build()); err != nil {
+	if _, err := disc.Client.Rest.CreateMessage(botChannelID, discord.NewMessageCreateBuilder().SetContent(msg).Build()); err != nil {
 		xlog.Errorf(ctx, "Error sending message to bot channel: %s", err)
 	}
 }

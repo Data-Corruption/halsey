@@ -40,6 +40,8 @@ var SchemaRecord = map[string]schema{
 		"botChannelID":    &value[string]{""},           // internal channel for privileged updates, etc.
 		"adminUserIDs":    &value[[]string]{[]string{}}, // list of user IDs that are considered admins
 		"expandBlacklist": &value[[]string]{[]string{}}, // list of user IDs that have opted out of auto-expanding.
+		"bioURL":          &value[string]{""},           // URL to the bio image, used in /about
+		"biohURL":         &value[string]{""},           // URL to the bioh image, used in /send nudes
 	},
 	/*
 		"v0.0.2": {

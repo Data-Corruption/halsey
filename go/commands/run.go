@@ -127,6 +127,7 @@ func startBot(ctx context.Context, registerCommands bool) error {
 			OnGuildsReady:                   func(event *events.GuildsReady) { listeners.OnGuildsReady(ctx, registerCommands, event) },
 			OnGuildMessageCreate:            func(event *events.GuildMessageCreate) { listeners.OnGuildMessageCreate(ctx, event) },
 			OnApplicationCommandInteraction: func(event *events.ApplicationCommandInteractionCreate) { listeners.OnCommandInteraction(ctx, event) },
+			OnComponentInteraction:          func(event *events.ComponentInteractionCreate) { listeners.OnComponentInteraction(ctx, event) },
 		}),
 	); err != nil {
 		return fmt.Errorf("failed to create bot client: %w", err)

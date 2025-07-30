@@ -5,7 +5,7 @@ import (
 	"halsey/go/disc/commands"
 	"halsey/go/disc/respond"
 	"halsey/go/storage/config"
-	"halsey/go/x"
+	"slices"
 
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/disgoorg/disgo/events"
@@ -20,6 +20,12 @@ func OnCommandInteraction(ctx context.Context, event *events.ApplicationCommandI
 		xlog.Debugf(ctx, "Commands map: %v", commands.List)
 		return
 	}
+	// bot check
+	if command.FilterBots && event.User().Bot {
+		respond.Normal(ctx, event, "Bots cannot use this command.", false)
+		return
+	}
+	// admin check
 	if command.RequireAdmin {
 		// get admin list from config
 		adminUserIDs, err := config.Get[[]string](ctx, "adminUserIDs")
@@ -28,11 +34,11 @@ func OnCommandInteraction(ctx context.Context, event *events.ApplicationCommandI
 			return
 		}
 		userID := event.User().ID.String()
-		if !x.Contains(adminUserIDs, userID) {
+		if !slices.Contains(adminUserIDs, userID) {
 			xlog.Warnf(ctx, "User %s is not an admin", userID)
 			respond.Normal(ctx, event, "You do not have permission to use this command.", true)
 			return
 		}
 	}
-	command.Handler(ctx, event)
+	go command.Handler(ctx, event)
 }

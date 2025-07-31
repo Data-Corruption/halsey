@@ -9,6 +9,7 @@ import (
 	"halsey/go/disc/respond"
 	"halsey/go/storage/database"
 	"math/rand"
+	"strings"
 
 	"github.com/Data-Corruption/lmdb-go/lmdb"
 	"github.com/Data-Corruption/stdx/xlog"
@@ -106,6 +107,14 @@ var favoriteCommand = BotCommand{
 			return err
 		}
 
+		// if the message is from the favorite channel, return early
+		if message.ChannelID == favChannel.ID() {
+			_, err = resFollowupMessage(ctx, event, discord.NewMessageCreateBuilder().
+				SetContent("This message is already in the favorites channel.").
+				Build())
+			return err
+		}
+
 		// get db for txn
 		db, fDBI, err := database.GetDbAndDBI(ctx, database.FavoritesDBIName)
 		if err != nil {
@@ -154,17 +163,56 @@ var favoriteCommand = BotCommand{
 			// parse source message
 			text, media := parseSourceMessage(message)
 
+			buttonFound := false
+			oLabel := ""
+			oUrl := ""
+			for _, c := range message.Components {
+				discordActionRow, ok := c.(discord.ActionRowComponent)
+				if !ok {
+					continue
+				}
+				for _, comp := range discordActionRow.Components {
+					if linkButton, ok := comp.(discord.ButtonComponent); ok {
+						if linkButton.Style == discord.ButtonStyleLink && strings.HasPrefix(linkButton.Label, "Open In") {
+							oLabel = linkButton.Label
+							oUrl = linkButton.URL
+							buttonFound = true
+							break
+						}
+					}
+				}
+				if buttonFound {
+					break
+				}
+			}
+
 			// build message
 			msgBuilder := discord.NewMessageCreateBuilder()
 			msgBuilder.SetFlags(discord.MessageFlagIsComponentsV2)
-			msgBuilder.AddComponents(discord.NewActionRow(
-				discord.NewLinkButton("Jump to message",
-					fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID(), message.ChannelID, message.ID),
-				),
-				discord.NewSecondaryButton("✖", fmt.Sprintf("remove_favorite.%s.%s", message.ID.String(), message.ChannelID.String())),
-			))
+			if buttonFound {
+				msgBuilder.AddComponents(discord.NewActionRow(
+					discord.NewLinkButton(oLabel, oUrl),
+					discord.NewLinkButton("Jump to message",
+						fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID(), message.ChannelID, message.ID),
+					),
+					discord.NewSecondaryButton("✖", fmt.Sprintf("remove_favorite.%s.%s", message.ID.String(), message.ChannelID.String())),
+				))
+			} else {
+				msgBuilder.AddComponents(discord.NewActionRow(
+					discord.NewLinkButton("Jump to message",
+						fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID(), message.ChannelID, message.ID),
+					),
+					discord.NewSecondaryButton("✖", fmt.Sprintf("remove_favorite.%s.%s", message.ID.String(), message.ChannelID.String())),
+				))
+			}
 			if len(message.Components) > 0 {
-				msgBuilder.AddComponents(message.Components...)
+				if !buttonFound {
+					msgBuilder.AddComponents(message.Components...)
+				} else {
+					if len(message.Components) > 1 {
+						msgBuilder.AddComponents(message.Components[1:]...)
+					}
+				}
 			}
 			if len(media) > 0 {
 				var mediaItems []discord.MediaGalleryItem
@@ -189,7 +237,7 @@ var favoriteCommand = BotCommand{
 			// send message to favorite channel
 			fMsg, err := disc.Client.Rest.CreateMessage(favChannel.ID(), msgBuilder.Build())
 			if err != nil {
-				fmt.Printf("Error creating author embed in favorite channel: %s\n", err)
+				fmt.Printf("Error creating message in favorite channel: %s\n", err)
 			}
 
 			// store in db

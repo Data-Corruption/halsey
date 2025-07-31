@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"halsey/go/disc"
 	"halsey/go/disc/listeners"
+	"halsey/go/storage/assets"
 	"halsey/go/storage/config"
 	"net/http"
 
@@ -39,6 +40,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World\n"))
 	})
+	mux.HandleFunc("/a/{hash}", assets.AssetFS(ctx))
 
 	// get http server related stuff from config
 	port, err := config.Get[int](ctx, "port")

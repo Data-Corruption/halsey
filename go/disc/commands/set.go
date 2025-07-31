@@ -60,6 +60,17 @@ var setCommand = BotCommand{
 					},
 				},
 			},
+			discord.ApplicationCommandOptionSubCommand{
+				Name:        "upload-limit-mb",
+				Description: "Sets the upload limit in MB",
+				Options: []discord.ApplicationCommandOption{
+					discord.ApplicationCommandOptionInt{
+						Name:        "limit",
+						Description: "The upload limit in MB",
+						Required:    true,
+					},
+				},
+			},
 		},
 	},
 	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) error {
@@ -73,7 +84,7 @@ var setCommand = BotCommand{
 		}
 
 		switch *data.SubCommandName {
-		case "favorites_channel":
+		case "favorites-channel":
 			// marshal channel ID
 			channelID, err := json.Marshal(event.Channel().ID().String())
 			if err != nil {
@@ -87,7 +98,7 @@ var setCommand = BotCommand{
 				return resMessageStr(ctx, event, "An internal error occurred while trying to set the favorite channel ID.", true)
 			}
 			return resMessageStr(ctx, event, "Favorite channel ID set successfully.", true)
-		case "bot_channel":
+		case "bot-channel":
 			if err := config.Set(ctx, "botChannelID", event.Channel().ID().String()); err != nil {
 				xlog.Errorf(ctx, "Error setting bot channel ID in config: %s", err)
 				return resMessageStr(ctx, event, "An internal error occurred while trying to set the bot channel ID.", true)
@@ -115,6 +126,14 @@ var setCommand = BotCommand{
 				return resMessageStr(ctx, event, "An internal error occurred while trying to set the synctube URL.", true)
 			}
 			return resMessageStr(ctx, event, "Synctube URL set successfully.", true)
+		case "upload-limit-mb":
+			// get limit from options
+			limit := uint(data.Options["limit"].Int())
+			if err := config.Set(ctx, "uploadSizeLimitMB", limit); err != nil {
+				xlog.Errorf(ctx, "Error setting upload limit in config: %s", err)
+				return resMessageStr(ctx, event, "An internal error occurred while trying to set the upload limit.", true)
+			}
+			return resMessageStr(ctx, event, "Upload limit set successfully.", true)
 		default:
 			xlog.Errorf(ctx, "unknown subcommand %s, for command %s", *data.SubCommandName, data.CommandName())
 			return resMessageStr(ctx, event, "An internal error occurred while trying to process the command.", true)

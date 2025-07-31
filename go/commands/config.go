@@ -46,6 +46,22 @@ var Config = &cli.Command{
 			},
 		},
 		{
+			Name:  "hostname",
+			Usage: "Set the server hostname `<hostname>`",
+			Action: func(ctx context.Context, cmd *cli.Command) error {
+				hostname := cmd.Args().Get(0)
+				if hostname == "" {
+					return fmt.Errorf("hostname cannot be empty")
+				}
+				// set hostname in config
+				if err := config.Set(ctx, "hostname", hostname); err != nil {
+					return fmt.Errorf("failed to set hostname: %w", err)
+				}
+				fmt.Printf("Hostname set to %s\n", hostname)
+				return nil
+			},
+		},
+		{
 			Name:  "tls",
 			Usage: "Toggle use of TLS for secure connections",
 			Action: func(ctx context.Context, cmd *cli.Command) error {

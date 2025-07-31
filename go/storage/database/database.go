@@ -21,8 +21,7 @@ Config - see config package for details.
 Backup
 	<message id> -> gzipped message
 Assets
-	ref.<hash> -> []string message references.
-	hash.<url> -> hash (for stuff not hosted by us that we backed up)
+	ref.<hash> -> []string IDs of messages referencing it.
 Favorites
 	<source message id> -> ID of copy in fav channel
 Channels

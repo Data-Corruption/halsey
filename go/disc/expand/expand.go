@@ -2,6 +2,8 @@ package expand
 
 import (
 	"context"
+	"fmt"
+	"halsey/go/disc"
 	"net/url"
 	"strings"
 
@@ -64,6 +66,16 @@ func ExpandTest(ctx context.Context, sourceMessage *discord.Message) error {
 		}
 	*/
 
+	return nil
+}
+
+func updateStatusMessage(ctx context.Context, msg *discord.Message, content string) error {
+	sp := disc.GetSpinnerEmoji(ctx)
+	if _, err := disc.Client.Rest.UpdateMessage(msg.ChannelID, msg.ID, discord.NewMessageUpdateBuilder().
+		SetContent(sp+" "+content).
+		Build()); err != nil {
+		return fmt.Errorf("failed to create message: %w", err)
+	}
 	return nil
 }
 

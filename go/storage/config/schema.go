@@ -29,6 +29,7 @@ var SchemaRecord = map[string]schema{
 		"version":         &value[string]{"v1.0.0"},
 		"logLevel":        &value[string]{"warn"},
 		"port":            &value[int]{8080},
+		"hostname":        &value[string]{""}, // empty means no file hosting / serving
 		"useTLS":          &value[bool]{false},
 		"tlsKeyPath":      &value[string]{""},
 		"tlsCertPath":     &value[string]{""},

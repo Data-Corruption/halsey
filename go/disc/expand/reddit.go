@@ -2,10 +2,10 @@ package expand
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"halsey/go/disc"
 	"halsey/go/xhtml"
+	"halsey/go/xnet"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,30 +16,53 @@ import (
 	"golang.org/x/net/html"
 )
 
+type BasicScrapeResult struct {
+	Path string // Path to the downloaded media file in the default temp directory.
+}
+type LinkScrapeResult struct {
+	Url string // Could be anything, but usually a link to an external site, often news.
+}
+type GalleryScrapeResult struct {
+	Paths []string // Paths to the downloaded media files in the default temp directory.
+}
+
 func reddit(ctx context.Context, sourceMessage *discord.Message, url string) error {
 	// create status message
 	sp := disc.GetSpinnerEmoji(ctx)
-	sMsg, err := disc.Client.Rest.CreateMessage(sourceMessage.ChannelID, discord.NewMessageCreateBuilder().
+	statusMsg, err := disc.Client.Rest.CreateMessage(sourceMessage.ChannelID, discord.NewMessageCreateBuilder().
 		SetMessageReferenceByID(sourceMessage.ID).
-		SetContent(sp+" Expanding reddit link... ").
+		SetContent(sp+" Parsing Reddit Post... ").
 		Build())
 	if err != nil {
 		return fmt.Errorf("failed to create message: %w", err)
 	}
 
+	// scrape reddit post
+	res, publicErr, err := scrapeRedditPost(ctx, sourceMessage, url)
+	if err != nil {
+		updateStatusMessage(ctx, statusMsg, publicErr)
+		return fmt.Errorf("failed to scrape reddit post: %w", err)
+	}
+
+	// TODO: get upload size limit
+
+	switch v := res.(type) {
+	case BasicScrapeResult:
+		updateStatusMessage(ctx, statusMsg, "Finished downloading media.")
+	case LinkScrapeResult:
+		updateStatusMessage(ctx, statusMsg, "Found link.")
+	case GalleryScrapeResult:
+		updateStatusMessage(ctx, statusMsg, fmt.Sprintf("Found gallery with %d items.", len(v.Paths)))
+	default:
+		updateStatusMessage(ctx, statusMsg, "Unknown media type.")
+	}
+
 	return nil
 }
 
-var ErrExceededMaxSize = errors.New("exceeded max size")
-
-// ScrapeResult represents the result of a scrape. Only one of the fields should be set.
-type ScrapeResult struct {
-	Url  string
-	Path string
-}
-
-// ScrapeRedditPost scrapes reddit urls for the main media content, downloads them, and returns the file paths.
-func ScrapeRedditPost(ctx context.Context, url string, maxSizeBytes int64) ([]ScrapeResult, string, error) {
+// scrapeRedditPost scrapes reddit urls for the main media content, downloads them, and returns the file paths.
+// Returns result, public safe error message, and error if any.
+func scrapeRedditPost(ctx context.Context, statusMsg *discord.Message, url string) (any, string, error) {
 	xlog.Debugf(ctx, "Scraping Reddit URL: %s", url)
 	doc := &html.Node{}
 	shredditPost := &html.Node{}
@@ -76,63 +99,16 @@ func ScrapeRedditPost(ctx context.Context, url string, maxSizeBytes int64) ([]Sc
 	// handle post types
 	switch postType {
 	case "link":
-		return []ScrapeResult{{Url: contentHref}}, "", nil
-	case "image":
-		xlog.Debugf(ctx, "Found image media: %s", contentHref)
-		var err error
-		outPath := ""
-		if outPath, err = DownloadMedia(contentHref); err != nil {
+		xlog.Debugf(ctx, "Found link post: %s", contentHref)
+		return LinkScrapeResult{Url: contentHref}, "", nil
+	case "image", "gif":
+		xlog.Debugf(ctx, "Found %s media: %s", postType, contentHref)
+		updateStatusMessage(ctx, statusMsg, fmt.Sprintf("Downloading %s media...", postType))
+		if outPath, err := xnet.DownloadMedia(contentHref); err != nil {
 			return nil, "Failed to download media", fmt.Errorf("failed to download media: %w", err)
+		} else {
+			return BasicScrapeResult{Path: outPath}, "", nil
 		}
-		// if the image is too large, compress it
-		if maxSizeBytes > 0 {
-			if fi, err := os.Stat(outPath); err != nil {
-				return nil, "Failed to get file info", fmt.Errorf("failed to get file info: %w", err)
-			} else if fi.Size() > maxSizeBytes {
-				xlog.Debugf(ctx, "Downloaded media (%dMB) exceeds max upload size (%dMB)", fi.Size()/(1024*1024), maxSizeBytes/(1024*1024))
-				// compress image
-				var newOutPath string
-				if newOutPath, err = CompressImage(ctx, outPath, maxSizeBytes/2); err != nil {
-					return nil, "", err
-				} else {
-					os.Remove(outPath)
-					return []ScrapeResult{{Path: newOutPath}}, "", nil
-				}
-			}
-		}
-		return []ScrapeResult{{Path: outPath}}, "", nil
-	case "gif":
-		xlog.Debugf(ctx, "Found gif media: %s", contentHref)
-		var err error
-		outPath := ""
-		if outPath, err = DownloadMedia(contentHref); err != nil {
-			return nil, "Failed to download media", fmt.Errorf("failed to download media: %w", err)
-		}
-		// if the gif is too large, fallback to the shreddit-player-2 src attribute url
-		if maxSizeBytes > 0 {
-			if fi, err := os.Stat(outPath); err != nil {
-				return nil, "Failed to get file info", fmt.Errorf("failed to get file info: %w", err)
-			} else if fi.Size() > maxSizeBytes {
-				xlog.Debugf(ctx, "Downloaded media (%dMB) exceeds max upload size (%dMB)", fi.Size()/(1024*1024), maxSizeBytes/(1024*1024))
-				shredditPlayer := xhtml.FindElementByTag(doc, "shreddit-player-2")
-				if shredditPlayer == nil {
-					return nil, "Post type is gif but no shreddit-player-2 element found", fmt.Errorf("post type is gif but no shreddit-player-2 element found")
-				}
-				src := xhtml.GetAttribute(shredditPlayer, "src")
-				if src == "" {
-					return nil, "No src attribute found in shreddit-player-2 element", fmt.Errorf("no src attribute found in shreddit-player-2 element")
-				}
-				xlog.Debugf(ctx, "Found video media: %s", src)
-				var newOutPath string
-				if newOutPath, err = DownloadMedia(src); err != nil {
-					return nil, "Failed to download media", fmt.Errorf("failed to download media: %w", err)
-				} else {
-					os.Remove(outPath)
-					return []ScrapeResult{{Path: newOutPath}}, "", nil
-				}
-			}
-		}
-		return []ScrapeResult{{Path: outPath}}, "", nil
 	case "video":
 		shredditPlayer := xhtml.FindElementByTag(doc, "shreddit-player")
 		if shredditPlayer == nil {
@@ -146,13 +122,14 @@ func ScrapeRedditPost(ctx context.Context, url string, maxSizeBytes int64) ([]Sc
 			return nil, "No src attribute found in shreddit-player or shreddit-player-2 element", fmt.Errorf("no src attribute found in shreddit-player or shreddit-player-2 element")
 		}
 		xlog.Debugf(ctx, "Found video media: %s", src)
-		if outPath, err := DownloadMedia(src); err != nil {
+		updateStatusMessage(ctx, statusMsg, "Downloading video...")
+		if outPath, err := xnet.DownloadMedia(src); err != nil {
 			return nil, "Failed to download media", fmt.Errorf("failed to download media: %w", err)
 		} else {
-			return []ScrapeResult{{Path: outPath}}, "", nil
+			return BasicScrapeResult{Path: outPath}, "", nil
 		}
 	case "gallery":
-		output := []ScrapeResult{}
+		output := GalleryScrapeResult{Paths: []string{}}
 		carousel := xhtml.FindElementByTag(doc, "gallery-carousel")
 		if carousel == nil {
 			return nil, "Post type is gallery but no gallery-carousel element found", fmt.Errorf("post type is gallery but no gallery-carousel element found")
@@ -165,6 +142,8 @@ func ScrapeRedditPost(ctx context.Context, url string, maxSizeBytes int64) ([]Sc
 		if len(lis) == 0 {
 			return nil, "Post type is gallery but no li elements found in ul element of gallery-carousel", fmt.Errorf("post type is gallery but no li elements found in ul element of gallery-carousel")
 		}
+		xlog.Debugf(ctx, "Downloading %d items from gallery", len(lis))
+		updateStatusMessage(ctx, statusMsg, fmt.Sprintf("Downloading %d items from gallery...", len(lis)))
 		for index, li := range lis {
 			img := xhtml.FindElementByTag(li, "img")
 			if img == nil {
@@ -178,10 +157,10 @@ func ScrapeRedditPost(ctx context.Context, url string, maxSizeBytes int64) ([]Sc
 				}
 			}
 			xlog.Debugf(ctx, "Found gallery media: %s", src)
-			if outPath, err := DownloadMedia(src); err != nil {
+			if outPath, err := xnet.DownloadMedia(src); err != nil {
 				return nil, "Failed to download media", fmt.Errorf("failed to download media: %w", err)
 			} else {
-				output = append(output, ScrapeResult{Path: outPath})
+				output.Paths = append(output.Paths, outPath)
 			}
 		}
 		return output, "", nil
@@ -215,3 +194,22 @@ func CompressImage(ctx context.Context, input string, targetSize int64) (string,
 	os.Remove(output)
 	return "", fmt.Errorf("failed to compress image to target size %d bytes", targetSize)
 }
+
+/*
+// if the image is too large, compress it
+		if maxSizeBytes > 0 {
+			if fi, err := os.Stat(outPath); err != nil {
+				return nil, "Failed to get file info", fmt.Errorf("failed to get file info: %w", err)
+			} else if fi.Size() > maxSizeBytes {
+				xlog.Debugf(ctx, "Downloaded media (%dMB) exceeds max upload size (%dMB)", fi.Size()/(1024*1024), maxSizeBytes/(1024*1024))
+				// compress image
+				var newOutPath string
+				if newOutPath, err = CompressImage(ctx, outPath, maxSizeBytes/2); err != nil {
+					return nil, "", err
+				} else {
+					os.Remove(outPath)
+					return []ScrapeResult{{Path: newOutPath}}, "", nil
+				}
+			}
+		}
+*/

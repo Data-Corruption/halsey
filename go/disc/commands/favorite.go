@@ -89,28 +89,29 @@ var favoriteCommand = BotCommand{
 	},
 	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) error {
 		if err := resDeferMessage(ctx, event); err != nil {
-			return fmt.Errorf("Error deferring interaction: %s", err)
+			return fmt.Errorf("error deferring interaction: %s", err)
 		}
 
 		data := event.MessageCommandInteractionData()
 		message := data.TargetMessage()
 		genericErr := discord.NewMessageCreateBuilder().
 			SetContent("An error occurred while trying to favorite this message. See logs for more details.").
-			SetEphemeral(true).
 			Build()
 
 		// get favorite channel
 		favChannel, err := getFavChannel(ctx, event.GuildID().String())
 		if err != nil {
 			xlog.Error(ctx, fmt.Sprintf("Error getting favorite channel: %s", err))
-			return resFollowupMessage(ctx, event, genericErr)
+			_, err = resFollowupMessage(ctx, event, genericErr)
+			return err
 		}
 
 		// get db for txn
 		db, fDBI, err := database.GetDbAndDBI(ctx, database.FavoritesDBIName)
 		if err != nil {
 			xlog.Error(ctx, fmt.Sprintf("Error getting database: %s", err))
-			return resFollowupMessage(ctx, event, genericErr)
+			_, err = resFollowupMessage(ctx, event, genericErr)
+			return err
 		}
 
 		alreadyInFavID := ""
@@ -156,6 +157,12 @@ var favoriteCommand = BotCommand{
 			// build message
 			msgBuilder := discord.NewMessageCreateBuilder()
 			msgBuilder.SetFlags(discord.MessageFlagIsComponentsV2)
+			msgBuilder.AddComponents(discord.NewActionRow(
+				discord.NewLinkButton("Jump to message",
+					fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID(), message.ChannelID, message.ID),
+				),
+				discord.NewSecondaryButton("✖", fmt.Sprintf("remove_favorite.%s.%s", message.ID.String(), message.ChannelID.String())),
+			))
 			if len(message.Components) > 0 {
 				msgBuilder.AddComponents(message.Components...)
 			}
@@ -172,12 +179,12 @@ var favoriteCommand = BotCommand{
 			if text != "" {
 				msgBuilder.AddComponents(discord.NewTextDisplay(text))
 			}
-			msgBuilder.AddComponents(discord.NewActionRow(
-				discord.NewLinkButton("Jump to message",
-					fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID(), message.ChannelID, message.ID),
-				),
-				discord.NewSecondaryButton("✖", fmt.Sprintf("remove_favorite.%s.%s", message.ID.String(), message.ChannelID.String())),
-			))
+			// add author bit (name and timestamp) skip if message if from self
+			if message.Author.ID != disc.Client.ApplicationID {
+				msgBuilder.AddComponents(discord.NewTextDisplay(
+					fmt.Sprintf("`%s` • <t:%d:R>", message.Author.Username, message.CreatedAt.Unix()),
+				))
+			}
 
 			// send message to favorite channel
 			fMsg, err := disc.Client.Rest.CreateMessage(favChannel.ID(), msgBuilder.Build())
@@ -197,16 +204,18 @@ var favoriteCommand = BotCommand{
 			return nil
 		}); err != nil {
 			xlog.Error(ctx, fmt.Sprintf("Error updating database: %s", err))
-			return resFollowupMessage(ctx, event, genericErr)
+			_, err = resFollowupMessage(ctx, event, genericErr)
+			return err
 		}
 
 		if alreadyInFavID != "" {
-			return resFollowupMessage(ctx, event, discord.NewMessageCreateBuilder().
+			_, err = resFollowupMessage(ctx, event, discord.NewMessageCreateBuilder().
 				SetContentf("This message is already favorited! https://discord.com/channels/%s/%s/%s", event.GuildID(), favChannel.ID(), alreadyInFavID).
 				SetEphemeral(true).
 				Build())
+			return err
 		} else {
-			err := resFollowupMessage(ctx, event, discord.NewMessageCreateBuilder().
+			_, err = resFollowupMessage(ctx, event, discord.NewMessageCreateBuilder().
 				SetContent(sucessMessages[rand.Intn(len(sucessMessages))]).
 				SetEphemeral(false).
 				Build())
@@ -215,9 +224,9 @@ var favoriteCommand = BotCommand{
 			}
 		}
 
-		emoji, err := disc.GetRandAppEmoji(ctx)
+		emoji, err := disc.GetRandFavEmoji(ctx)
 		if err != nil {
-			xlog.Warnf(ctx, "Error getting random app emoji: %s", err)
+			xlog.Warnf(ctx, "Error getting random favorite emoji: %s", err)
 			return nil
 		}
 		respond.React(disc.Client, message.ChannelID, message.ID, emoji)

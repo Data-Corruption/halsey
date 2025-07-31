@@ -2,7 +2,10 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"halsey/go/disc"
+	"halsey/go/disc/expand"
+	"time"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
@@ -16,16 +19,15 @@ var expandCommand = BotCommand{
 		Name: "expand",
 	},
 	Handler: func(ctx context.Context, event *events.ApplicationCommandInteractionCreate) error {
-
-		data := event.MessageCommandInteractionData()
-		message := data.TargetMessage()
-
-		// if message author is the bot, do not expand
-		if message.Author.ID == disc.Client.ID() {
-			return resMessageStr(ctx, event, "I can't expand my own messages!", true)
+		if err := resDeferMessage(ctx, event); err != nil {
+			return fmt.Errorf("error deferring interaction: %s", err)
 		}
-
-		return resMessageStr(ctx, event, "You expanded this message!", true)
+		time.Sleep(2 * time.Second)
+		if err := disc.Client.Rest.DeleteInteractionResponse(disc.Client.ApplicationID, event.Token()); err != nil {
+			return err
+		}
+		msg := event.MessageCommandInteractionData().TargetMessage()
+		return expand.ExpandTest(ctx, &msg)
 	},
 }
 

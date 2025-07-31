@@ -38,6 +38,11 @@ var sendCommand = BotCommand{
 		if err := resMessageStr(ctx, event, "lmao, you wish", true); err != nil {
 			return fmt.Errorf("failed to respond: %w", err)
 		}
+		time.Sleep(3500 * time.Millisecond)
+		if err := disc.Client.Rest.DeleteInteractionResponse(disc.Client.ApplicationID, event.Token()); err != nil {
+			return fmt.Errorf("failed to delete interaction response: %w", err)
+		}
+
 		time.Sleep(20 * time.Second)
 
 		biohURL, err := config.Get[string](ctx, "biohURL")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 
 	"github.com/Data-Corruption/stdx/xlog"
@@ -35,10 +36,26 @@ func GetAppEmojis(ctx context.Context) []string {
 	return emojiCache
 }
 
-func GetRandAppEmoji(ctx context.Context) (string, error) {
+func GetSpinnerEmoji(ctx context.Context) string {
+	emojis := GetAppEmojis(ctx)
+	for _, emoji := range emojis {
+		if strings.HasPrefix(emoji, "a:spinner") {
+			return "<" + emoji + ">"
+		}
+	}
+	return ""
+}
+
+func GetRandFavEmoji(ctx context.Context) (string, error) {
 	emojis := GetAppEmojis(ctx)
 	if len(emojis) == 0 {
 		return "", fmt.Errorf("no emojis found")
 	}
-	return emojis[rand.Intn(len(emojis))], nil
+	var favoriteEmojis = []string{}
+	for _, emoji := range emojis {
+		if strings.HasPrefix(emoji, "a:fav") || strings.HasPrefix(emoji, ":fav") {
+			favoriteEmojis = append(favoriteEmojis, emoji)
+		}
+	}
+	return favoriteEmojis[rand.Intn(len(favoriteEmojis))], nil
 }

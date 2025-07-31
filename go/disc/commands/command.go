@@ -40,7 +40,6 @@ func resDeferMessage(ctx context.Context, event *events.ApplicationCommandIntera
 	return event.Respond(discord.InteractionResponseTypeDeferredCreateMessage, nil)
 }
 
-func resFollowupMessage(ctx context.Context, event *events.ApplicationCommandInteractionCreate, messageCreate discord.MessageCreate) error {
-	_, err := disc.Client.Rest.CreateFollowupMessage(disc.Client.ApplicationID, event.Token(), messageCreate)
-	return err
+func resFollowupMessage(ctx context.Context, event *events.ApplicationCommandInteractionCreate, messageCreate discord.MessageCreate) (*discord.Message, error) {
+	return disc.Client.Rest.CreateFollowupMessage(disc.Client.ApplicationID, event.Token(), messageCreate)
 }

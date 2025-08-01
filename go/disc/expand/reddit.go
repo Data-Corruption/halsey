@@ -53,7 +53,7 @@ func reddit(ctx context.Context, sourceMessage *discord.Message, url string) err
 		updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to get upload size limit")
 		return fmt.Errorf("failed to get upload size limit: %w", err)
 	}
-	uploadSizeLimit := int64(uploadSizeLimitMB) * 1024 * 1024 // Convert MB to bytes
+	uploadSizeLimit := int64(uploadSizeLimitMB-2) * 1024 * 1024 // Convert MB to bytes
 
 	switch v := res.(type) {
 	case BasicScrapeResult:
@@ -84,7 +84,7 @@ func reddit(ctx context.Context, sourceMessage *discord.Message, url string) err
 			if hostname == "" {
 				file.Close()
 				os.Remove(v.Path)
-				updateStatusMessage(ctx, statusMsg, false, "Internal error: hostname is empty")
+				updateStatusMessage(ctx, statusMsg, false, "Media exceeds size limit and bot is not configured to self-host assets")
 				return fmt.Errorf("hostname is empty: %w", err)
 			}
 			// get useTLS

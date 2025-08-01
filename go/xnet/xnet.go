@@ -7,7 +7,15 @@ import (
 	"os/exec"
 	"regexp"
 	"slices"
+	"strings"
 )
+
+var YtPrefixes = []string{
+	"https://www.youtube.com/watch?v=",
+	"https://youtu.be/",
+	"https://youtube.com/shorts/",
+	"https://www.youtube.com/shorts/",
+}
 
 // Ffmpeg runs the ffmpeg command to download media from the given URL and save it to the specified output path.
 // It returns an error if the ffmpeg command fails.
@@ -31,11 +39,40 @@ func Curl(rawURL string, outPath string) error {
 	return nil
 }
 
+func yt_dlp(rawURL string) (string, error) {
+	// check if yt-dlp is installed
+	_, err := exec.LookPath("yt-dlp")
+	if err != nil {
+		return "", fmt.Errorf("yt-dlp binary not found in PATH: %w", err)
+	}
+	// gen out file
+	outFile, err := os.CreateTemp("", "*.webm")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	outFile.Close() // close so yt-dlp can write to it
+	outPath := outFile.Name()
+	// run yt-dlp command
+	cmd := exec.Command("yt-dlp", "--force-overwrites", "-o", outPath, rawURL)
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("yt-dlp command failed: %w", err)
+	}
+	return outPath, nil
+}
+
 // DownloadMedia downloads media from the given URL and saves it to a temporary file.
 // It determines the file type from the URL and uses either ffmpeg or curl to download it.
 // It returns the path to the downloaded file in a temporary directory and an error if any.
 // NOTE: cleanup of outfile is the caller's responsibility.
 func DownloadMedia(rawURL string) (string, error) {
+	// handle YouTube URLs
+	for _, prefix := range YtPrefixes {
+		if strings.HasPrefix(rawURL, prefix) {
+			return yt_dlp(rawURL)
+		}
+	}
+
 	var ext string
 	var err error
 	// determine the file extension

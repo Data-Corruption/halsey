@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 	"halsey/go/disc"
+	"halsey/go/xnet"
 	"net/url"
 	"strings"
 
 	"github.com/disgoorg/disgo/discord"
 )
 
-// TODO: add youtube
-func ExpandTest(ctx context.Context, sourceMessage *discord.Message) error {
+func ExpandTest(ctx context.Context, sourceMessage *discord.Message, manual bool) error {
 	url := strings.TrimSpace(sourceMessage.Content)
 	if !isSingleValidURL(url) {
 		return nil
@@ -25,6 +25,18 @@ func ExpandTest(ctx context.Context, sourceMessage *discord.Message) error {
 	case strings.HasPrefix(url, "https://www.reddit.com/") || strings.HasPrefix(url, "https://old.reddit.com/"):
 		return reddit(ctx, sourceMessage, url)
 	default:
+		if manual {
+			for _, prefix := range xnet.YtPrefixes {
+				if strings.HasPrefix(url, prefix) {
+					return youtube(ctx, sourceMessage, url)
+				}
+			}
+		} else {
+			// just shorts
+			if strings.HasPrefix(url, "https://youtube.com/shorts/") || strings.HasPrefix(url, "https://www.youtube.com/shorts/") {
+				return youtube(ctx, sourceMessage, url)
+			}
+		}
 		return nil
 	}
 }

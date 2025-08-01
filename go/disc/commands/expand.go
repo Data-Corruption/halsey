@@ -27,7 +27,7 @@ var expandCommand = BotCommand{
 			return err
 		}
 		msg := event.MessageCommandInteractionData().TargetMessage()
-		return expand.ExpandTest(ctx, &msg)
+		return expand.ExpandTest(ctx, &msg, true)
 	},
 }
 

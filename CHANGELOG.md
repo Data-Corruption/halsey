@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.1.0] - 2025-08-01
+
+Requires ffmpeg and yt-dlp to be installed and on PATH.
+
+Initial Release:
+- Cute bot persona
+- Favorite System
+- Expand System
+
+Future Roadmap:
+- Self-host assets too big for upload.
+- Backup System
+
 ## [v0.0.6] - 2025-07-23
 
 Removed:

@@ -62,6 +62,18 @@ var Config = &cli.Command{
 			},
 		},
 		{
+			Name:  "unset-hostname",
+			Usage: "Unset the server hostname",
+			Action: func(ctx context.Context, cmd *cli.Command) error {
+				// unset hostname in config
+				if err := config.Set(ctx, "hostname", ""); err != nil {
+					return fmt.Errorf("failed to unset hostname: %w", err)
+				}
+				fmt.Println("Hostname unset")
+				return nil
+			},
+		},
+		{
 			Name:  "tls",
 			Usage: "Toggle use of TLS for secure connections",
 			Action: func(ctx context.Context, cmd *cli.Command) error {

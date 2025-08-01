@@ -19,7 +19,7 @@ func OnGuildMessageCreate(ctx context.Context, event *events.GuildMessageCreate)
 		if message.Author.Bot {
 			return
 		}
-		if err := expand.ExpandTest(ctx, message); err != nil {
+		if err := expand.ExpandTest(ctx, message, false); err != nil {
 			xlog.Error(ctx, "Failed to expand message: ", err)
 		}
 	}()

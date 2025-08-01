@@ -82,10 +82,11 @@ func reddit(ctx context.Context, sourceMessage *discord.Message, url string) err
 				return fmt.Errorf("failed to get hostname: %w", err)
 			}
 			if hostname == "" {
+				xlog.Debug(ctx, "Hostname is empty, aborting self-hosted asset upload")
 				file.Close()
 				os.Remove(v.Path)
 				updateStatusMessage(ctx, statusMsg, false, "Media exceeds size limit and bot is not configured to self-host assets")
-				return fmt.Errorf("hostname is empty: %w", err)
+				return nil
 			}
 			// get useTLS
 			useTLS, err := config.Get[bool](ctx, "useTLS")

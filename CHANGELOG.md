@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.2] - 2025-08-03
+
+- Fixed migration version put.
+
 ## [v0.2.1] - 2025-08-03
 
 - /update restart now forces command registration 

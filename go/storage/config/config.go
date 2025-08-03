@@ -248,7 +248,7 @@ func (cfg *Config) Migrate() error {
 			if err := migrationFunc(txn, cfg.DBI, cfg.Schemas); err != nil {
 				return fmt.Errorf("migration failed: %w", err)
 			}
-			if err := txn.Put(cfg.DBI, []byte("version"), []byte(cfg.Version), 0); err != nil {
+			if err := database.MarshalAndPut(txn, cfg.DBI, []byte("version"), cfg.Version); err != nil {
 				return fmt.Errorf("failed to write new version '%s': %w", cfg.Version, err)
 			}
 			fmt.Printf("config migration successful: %s\n", migratePath)

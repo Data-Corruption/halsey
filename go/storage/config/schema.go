@@ -26,7 +26,7 @@ type schema map[string]valueInterface
 // and migration funcs for it in `migration.go`. The newest version is assumed to be the current version.
 var SchemaRecord = map[string]schema{
 	"v1.0.1": {
-		"version":           &value[string]{"v1.0.0"},
+		"version":           &value[string]{"v1.0.1"},
 		"logLevel":          &value[string]{"warn"},
 		"port":              &value[int]{8080},
 		"hostname":          &value[string]{""}, // empty means no file hosting / serving

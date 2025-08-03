@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.1] - 2025-08-03
+
+- /update restart now forces command registration 
+
 ## [v0.2.0] - 2025-08-03
 
 - Added update command

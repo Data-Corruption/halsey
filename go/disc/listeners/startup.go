@@ -67,12 +67,6 @@ func OnGuildsReady(ctx context.Context, registerCommands bool, event *events.Gui
 		return
 	}
 
-	// register commands if needed
-	if registerCommands {
-		xlog.Info(ctx, "Registering commands...")
-		registerCmds(ctx)
-	}
-
 	// handle update command response
 	// get updateFollowup from config
 	updateFollowup, err := config.Get[string](ctx, "updateFollowup")
@@ -80,6 +74,13 @@ func OnGuildsReady(ctx context.Context, registerCommands bool, event *events.Gui
 		xlog.Error(ctx, "failed to get updateFollowup from config: %w", err)
 		return
 	}
+
+	// register commands if updateFollowup is set or manually requested
+	if updateFollowup != "" || registerCommands {
+		xlog.Info(ctx, "Registering commands...")
+		registerCmds(ctx)
+	}
+
 	if updateFollowup != "" {
 		// split event token and message ID
 		parts := strings.Split(updateFollowup, "|")

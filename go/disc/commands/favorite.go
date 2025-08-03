@@ -230,7 +230,7 @@ var favoriteCommand = BotCommand{
 			// add author bit (name and timestamp) skip if message if from self
 			if message.Author.ID != disc.Client.ApplicationID {
 				msgBuilder.AddComponents(discord.NewTextDisplay(
-					fmt.Sprintf("`%s` • <t:%d:R>", message.Author.Username, message.CreatedAt.Unix()),
+					fmt.Sprintf("`%s` • <t:%d:f>", message.Author.Username, message.CreatedAt.Unix()),
 				))
 			}
 

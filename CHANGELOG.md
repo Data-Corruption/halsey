@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.0] - 2025-08-03
+
+- Added update command
+- Tweaked timestamp formatting
+
 ## [v0.1.0] - 2025-08-01
 
 Requires ffmpeg and yt-dlp to be installed and on PATH.

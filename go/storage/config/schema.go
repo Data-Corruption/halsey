@@ -16,7 +16,7 @@ type Example struct {
 */
 
 // Version is the current version of the schema
-const Version = "v1.0.0"
+const Version = "v1.0.1"
 
 // key -> default value
 type schema map[string]valueInterface
@@ -25,6 +25,26 @@ type schema map[string]valueInterface
 // After making changes to the schema, before the next release you must add a new version entry to this variable
 // and migration funcs for it in `migration.go`. The newest version is assumed to be the current version.
 var SchemaRecord = map[string]schema{
+	"v1.0.1": {
+		"version":           &value[string]{"v1.0.0"},
+		"logLevel":          &value[string]{"warn"},
+		"port":              &value[int]{8080},
+		"hostname":          &value[string]{""}, // empty means no file hosting / serving
+		"useTLS":            &value[bool]{false},
+		"tlsKeyPath":        &value[string]{""},
+		"tlsCertPath":       &value[string]{""},
+		"updateNotify":      &value[bool]{true},
+		"lastUpdateCheck":   &value[string]{time.Now().Format(time.RFC3339)},
+		"updateAvailable":   &value[bool]{false},
+		"botToken":          &value[string]{""},           // WARNING: if you change this, update the print func in config.go
+		"backupPassword":    &value[string]{""},           // WARNING: if you change this, update the print func in config.go
+		"uploadSizeLimitMB": &value[uint]{10},             // 10 MB default upload size limit
+		"botChannelID":      &value[string]{""},           // internal channel for privileged updates, etc.
+		"adminUserIDs":      &value[[]string]{[]string{}}, // list of user IDs that are considered admins
+		"bioURL":            &value[string]{""},           // URL to the bio image, used in /about
+		"biohURL":           &value[string]{""},           // URL to the bioh image, used in /send nudes
+		"updateFollowup":    &value[string]{""},           // followup "<interaction token>|<message ID>" for update command response.
+	},
 	"v1.0.0": {
 		"version":           &value[string]{"v1.0.0"},
 		"logLevel":          &value[string]{"warn"},

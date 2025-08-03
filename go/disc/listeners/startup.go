@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"halsey/go/disc"
 	"halsey/go/disc/commands"
+	"halsey/go/storage/config"
 	"halsey/go/storage/database"
+	"strings"
 	"time"
 
 	"github.com/Data-Corruption/lmdb-go/lmdb"
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
+	"github.com/disgoorg/snowflake/v2"
 )
 
 func OnReady(ctx context.Context, event *events.Ready) {
@@ -68,6 +71,49 @@ func OnGuildsReady(ctx context.Context, registerCommands bool, event *events.Gui
 	if registerCommands {
 		xlog.Info(ctx, "Registering commands...")
 		registerCmds(ctx)
+	}
+
+	// handle update command response
+	// get updateFollowup from config
+	updateFollowup, err := config.Get[string](ctx, "updateFollowup")
+	if err != nil {
+		xlog.Error(ctx, "failed to get updateFollowup from config: %w", err)
+		return
+	}
+	if updateFollowup != "" {
+		// split event token and message ID
+		parts := strings.Split(updateFollowup, "|")
+		if len(parts) != 2 {
+			xlog.Error(ctx, "updateFollowup format is invalid, expected '<event token>|<message ID>', got: ", updateFollowup)
+			return
+		}
+
+		// clear updateFollowup from config
+		if err := config.Set(ctx, "updateFollowup", ""); err != nil {
+			xlog.Error(ctx, "failed to clear updateFollowup in config: %w", err)
+			return
+		}
+
+		// parse into snowflake
+		messageID, err := snowflake.Parse(parts[1])
+		if err != nil {
+			xlog.Error(ctx, "failed to parse message ID into snowflake: %w", err)
+			return
+		}
+
+		// get current version from context
+		version, ok := ctx.Value("appVersion").(string)
+		if !ok {
+			xlog.Error(ctx, "failed to get appVersion from context")
+			return
+		}
+
+		// update the followup message
+		_, err = disc.Client.Rest.UpdateFollowupMessage(disc.Client.ApplicationID, parts[0], messageID, discord.NewMessageUpdateBuilder().
+			SetContentf("Updated to version %s successfully!", version).Build())
+		if err != nil {
+			xlog.Error(ctx, "failed to update followup message: %w", err)
+		}
 	}
 
 	// TODO: start backup service

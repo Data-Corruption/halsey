@@ -109,7 +109,7 @@ func youtube(ctx context.Context, sourceMessage *discord.Message, url string) er
 				discord.NewMediaGallery(
 					discord.MediaGalleryItem{Media: discord.UnfurledMediaItem{URL: hURL}},
 				),
-				discord.NewTextDisplayf("`%s` • <t:%d:R>", sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()),
+				discord.NewTextDisplayf("`%s` • <t:%d:f>", sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()),
 			).
 			Build()); err != nil {
 			updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to create message")
@@ -134,7 +134,7 @@ func youtube(ctx context.Context, sourceMessage *discord.Message, url string) er
 				discord.NewMediaGallery(
 					discord.MediaGalleryItem{Media: discord.UnfurledMediaItem{URL: "attachment://" + aName}},
 				),
-				discord.NewTextDisplayf("`%s` • <t:%d:R>", sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()),
+				discord.NewTextDisplayf("`%s` • <t:%d:f>", sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()),
 			).
 			AddFile(aName, "", file).
 			Build()); err != nil {

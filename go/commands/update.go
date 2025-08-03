@@ -18,7 +18,8 @@ var Update = &cli.Command{
 		if !ok {
 			return fmt.Errorf("failed to get appVersion from context")
 		}
-		return update.Update(ctx, version)
+		_, err := update.Update(ctx, version)
+		return err
 	},
 	Commands: []*cli.Command{
 		{

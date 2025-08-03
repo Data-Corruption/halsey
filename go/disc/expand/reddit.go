@@ -120,7 +120,7 @@ func reddit(ctx context.Context, sourceMessage *discord.Message, url string) err
 					discord.NewMediaGallery(
 						discord.MediaGalleryItem{Media: discord.UnfurledMediaItem{URL: hURL}},
 					),
-					discord.NewTextDisplayf("`%s` • <t:%d:R>", sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()),
+					discord.NewTextDisplayf("`%s` • <t:%d:f>", sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()),
 				).
 				Build()); err != nil {
 				updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to create message")
@@ -145,7 +145,7 @@ func reddit(ctx context.Context, sourceMessage *discord.Message, url string) err
 					discord.NewMediaGallery(
 						discord.MediaGalleryItem{Media: discord.UnfurledMediaItem{URL: "attachment://" + aName}},
 					),
-					discord.NewTextDisplayf("`%s` • <t:%d:R>", sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()),
+					discord.NewTextDisplayf("`%s` • <t:%d:f>", sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()),
 				).
 				AddFile(aName, "", file).
 				Build()); err != nil {
@@ -163,7 +163,7 @@ func reddit(ctx context.Context, sourceMessage *discord.Message, url string) err
 		// create a message with the expanded URL
 		_, err := disc.Client.Rest.CreateMessage(sourceMessage.ChannelID, discord.NewMessageCreateBuilder().
 			AddActionRow(discord.NewLinkButton("Open In Reddit", url)).
-			SetContentf("%s\n`%s` • <t:%d:R>", v.Url, sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()).
+			SetContentf("%s\n`%s` • <t:%d:f>", v.Url, sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()).
 			Build())
 		if err != nil {
 			return fmt.Errorf("failed to create message: %w", err)

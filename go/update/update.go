@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/Data-Corruption/stdx/xlog"
@@ -24,6 +25,8 @@ const (
 )
 
 // ----------------------------------------------------------------------------
+
+var updateMu sync.Mutex
 
 // Check checks if there is a newer version of the application available and updates the config accordingly.
 // It returns true if an update is available, false otherwise.
@@ -54,10 +57,14 @@ func Check(ctx context.Context, version string) (bool, error) {
 
 // Update checks if there is a newer version of the tool available.
 // If a newer version is available, it will stop the daemon then spawn a new process to facilitate the update.
-func Update(ctx context.Context, version string) error {
+// Returns the new version if updated (empty string if no update) and an error if any.
+func Update(ctx context.Context, version string) (string, error) {
+	updateMu.Lock()
+	defer updateMu.Unlock()
+
 	if version == "vX.X.X" {
 		fmt.Println("Dev build detected, skipping update.")
-		return nil
+		return "", nil
 	}
 
 	lCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -65,13 +72,13 @@ func Update(ctx context.Context, version string) error {
 
 	latest, err := git.LatestGitHubReleaseTag(lCtx, RepoURL)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	updateAvailable := semver.Compare(latest, version) > 0
 	if !updateAvailable {
 		fmt.Println("No updates available.")
-		return nil
+		return "", nil
 	}
 	fmt.Println("New version available:", latest)
 
@@ -81,7 +88,7 @@ func Update(ctx context.Context, version string) error {
 	// get the executable path
 	self, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("failed to get executable path: %w", err)
+		return "", fmt.Errorf("failed to get executable path: %w", err)
 	}
 	selfReal, errSelf := filepath.EvalSymlinks(self)
 	if errSelf != nil {
@@ -90,23 +97,23 @@ func Update(ctx context.Context, version string) error {
 	// ensure the path is absolute
 	selfPath, err := filepath.Abs(selfReal)
 	if err != nil {
-		return fmt.Errorf("failed to get absolute path of executable: %w", err)
+		return "", fmt.Errorf("failed to get absolute path of executable: %w", err)
 	}
 
 	runSudo := false
 	if !isRoot {
 		if filepath.Dir(selfPath) == "/usr/local/bin" {
 			if runSudo, err = prompt.YesNo("This update requires root privileges. Do you want to run the update with sudo?"); err != nil {
-				return fmt.Errorf("failed to prompt for sudo: %w", err)
+				return "", fmt.Errorf("failed to prompt for sudo: %w", err)
 			}
 			if !runSudo {
 				fmt.Println("Update aborted. Please run the command with sudo to update.")
-				return nil
+				return "", nil
 			}
 		} else {
 			if filepath.Dir(selfPath) != filepath.Join(os.Getenv("HOME"), ".local", "bin") {
 				if runSudo, err = prompt.YesNo("Unsure if sudo is required. Do you want to run the update with sudo?"); err != nil {
-					return fmt.Errorf("failed to prompt for sudo: %w", err)
+					return "", fmt.Errorf("failed to prompt for sudo: %w", err)
 				}
 			}
 		}
@@ -122,13 +129,13 @@ func Update(ctx context.Context, version string) error {
 	cmd := exec.CommandContext(iCtx, "bash", "-c", pipeline)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("update failed: %w", err)
+		return "", fmt.Errorf("update failed: %w", err)
 	}
 
 	// update config
 	if err := config.Set(ctx, "updateAvailable", false); err != nil {
-		return fmt.Errorf("failed to set updateAvailable in config: %w", err)
+		return "", fmt.Errorf("failed to set updateAvailable in config: %w", err)
 	}
 
-	return nil
+	return latest, nil
 }

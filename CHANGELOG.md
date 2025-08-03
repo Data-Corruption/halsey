@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.3] - 2025-08-03
+
+- Update test
+
 ## [v0.2.2] - 2025-08-03
 
 - Fixed migration version put.

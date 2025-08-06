@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"halsey/go/disc"
 	"halsey/go/disc/listeners"
@@ -20,6 +21,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/urfave/cli/v3"
 )
+
+//go:embed helloworld.html
+var helloWorldHTML []byte
 
 var Run = &cli.Command{
 	Name:  "run",
@@ -153,15 +157,14 @@ func buildRouter(ctx context.Context) *chi.Mux {
 			w.Header().Set("Content-Security-Policy", "default-src 'self'; "+
 				"object-src 'none'; "+
 				"base-uri 'self'; "+
-				"upgrade-insecure-requests; "+
-				"block-all-mixed-content")
+				"upgrade-insecure-requests")
 			next.ServeHTTP(w, r)
 		})
 	})
 
 	// for testing
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello World\n"))
+		w.Write(helloWorldHTML)
 	})
 
 	// asset file server

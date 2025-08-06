@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.6] - 2025-08-05
+
+- Improved hello world
+
 ## [v0.2.5] - 2025-08-05
 
 - Improved security headers

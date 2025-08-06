@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.8] - 2025-08-06
+
+- further unfurl testing
+
 ## [v0.2.7] - 2025-08-05
 
 - fix attempt

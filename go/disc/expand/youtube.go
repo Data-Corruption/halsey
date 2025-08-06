@@ -109,6 +109,10 @@ func youtube(ctx context.Context, sourceMessage *discord.Message, url string) er
 		}
 		hURL += "://" + hostname + server.Addr() + "/a/" + name
 		xlog.Debugf(ctx, "File %s added to assets, URL: %s", outPath, hURL)
+		fmt.Println("File added to assets, URL:", hURL)
+
+		//TODO: for now test with a link we know unfurls correctly
+		hURL = "https://cdn.artstation.com/p/video_sources/002/769/479/video-colettibar-05.mp4"
 
 		// create message with asset link
 		if _, err := disc.Client.Rest.CreateMessage(sourceMessage.ChannelID, discord.NewMessageCreateBuilder().

@@ -151,6 +151,7 @@ func buildRouter(ctx context.Context) *chi.Mux {
 	// setup recovery middleware
 	r.Use(middleware.Recoverer)
 
+	/* temp remove cause disc might not like it when unfurling?
 	// set content security policy to upgrade insecure requests
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +162,7 @@ func buildRouter(ctx context.Context) *chi.Mux {
 			next.ServeHTTP(w, r)
 		})
 	})
+	*/
 
 	// for testing
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {

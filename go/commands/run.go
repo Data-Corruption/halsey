@@ -150,7 +150,11 @@ func buildRouter(ctx context.Context) *chi.Mux {
 	// set content security policy to upgrade insecure requests
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Security-Policy", "upgrade-insecure-requests")
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; "+
+				"object-src 'none'; "+
+				"base-uri 'self'; "+
+				"upgrade-insecure-requests; "+
+				"block-all-mixed-content")
 			next.ServeHTTP(w, r)
 		})
 	})

@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.5] - 2025-08-05
+
+- Improved security headers
+
 ## [v0.2.4] - 2025-08-05
 
 - Fixed server headers

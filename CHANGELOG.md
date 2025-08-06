@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.9] - 2025-08-06
+
+- here we go again
+
 ## [v0.2.8] - 2025-08-06
 
 - further unfurl testing

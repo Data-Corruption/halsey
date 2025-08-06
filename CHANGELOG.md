@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.10] - 2025-08-06
+
+- added webm mime support
+
 ## [v0.2.9] - 2025-08-06
 
 - here we go again

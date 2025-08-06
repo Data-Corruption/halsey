@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"halsey/go/storage/database"
 	"halsey/go/storage/storagepath"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,6 +26,10 @@ e.g. `assets/83/fb/83fbcf83c1387...`
 file server router handles simple conversation from `/a/<hash>.ext` to path.
 */
 const ASSET_DIR = "assets"
+
+func init() {
+	mime.AddExtensionType(".webm", "video/webm")
+}
 
 // handle /a/{hash} requests
 func AssetFS(ctx context.Context) http.HandlerFunc {

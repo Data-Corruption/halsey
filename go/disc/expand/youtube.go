@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Data-Corruption/stdx/xhttp"
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/disgoorg/disgo/discord"
 )
@@ -85,6 +86,14 @@ func youtube(ctx context.Context, sourceMessage *discord.Message, url string) er
 			updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to get useTLS")
 			return fmt.Errorf("failed to get useTLS: %w", err)
 		}
+		// get server
+		server, ok := ctx.Value("httpServer").(*xhttp.Server)
+		if !ok {
+			file.Close()
+			os.Remove(outPath)
+			updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to get http server")
+			return fmt.Errorf("failed to get http server: %w", err)
+		}
 
 		file.Close()
 		name, err := assets.Add(ctx, file.Name())
@@ -98,7 +107,7 @@ func youtube(ctx context.Context, sourceMessage *discord.Message, url string) er
 		if useTLS {
 			hURL += "s"
 		}
-		hURL += "://" + hostname + "/a/" + name
+		hURL += "://" + hostname + server.Addr() + "/a/" + name
 		xlog.Debugf(ctx, "File %s added to assets, URL: %s", outPath, hURL)
 
 		// create message with asset link

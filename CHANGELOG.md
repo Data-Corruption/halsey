@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.7] - 2025-08-05
+
+- fix attempt
+
 ## [v0.2.6] - 2025-08-05
 
 - Improved hello world

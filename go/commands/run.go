@@ -168,7 +168,8 @@ func buildRouter(ctx context.Context) *chi.Mux {
 	})
 
 	// asset file server
-	r.Get("/a/{hash}", assets.AssetFS(ctx))
+	r.Method("GET", "/a/{hash}", assets.AssetFS(ctx))
+	r.Method("HEAD", "/a/{hash}", assets.AssetFS(ctx))
 
 	return r
 }

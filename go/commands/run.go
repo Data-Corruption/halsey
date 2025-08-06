@@ -16,6 +16,8 @@ import (
 	"github.com/disgoorg/disgo/cache"
 	"github.com/disgoorg/disgo/events"
 	"github.com/disgoorg/disgo/gateway"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/urfave/cli/v3"
 )
 
@@ -35,13 +37,6 @@ var Run = &cli.Command{
 }
 
 func run(ctx context.Context, cmd *cli.Command) error {
-	// router
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello World\n"))
-	})
-	mux.HandleFunc("/a/{hash}", assets.AssetFS(ctx))
-
 	// get http server related stuff from config
 	port, err := config.Get[int](ctx, "port")
 	if err != nil {
@@ -67,7 +62,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		UseTLS:      useTLS,
 		TLSKeyPath:  tlsKeyPath,
 		TLSCertPath: tlsCertPath,
-		Handler:     mux,
+		Handler:     buildRouter(ctx),
 		AfterListen: func() {
 			fmt.Printf("Server is listening on http://localhost%s\n", srv.Addr())
 		},
@@ -136,4 +131,37 @@ func startBot(ctx context.Context, registerCommands bool) error {
 	}
 
 	return nil
+}
+
+func buildRouter(ctx context.Context) *chi.Mux {
+	r := chi.NewRouter()
+
+	// setup logger
+	logger := xlog.FromContext(ctx)
+	formatter := &middleware.DefaultLogFormatter{
+		Logger:  logger,
+		NoColor: true,
+	}
+	r.Use(middleware.RequestLogger(formatter))
+
+	// setup recovery middleware
+	r.Use(middleware.Recoverer)
+
+	// set content security policy to upgrade insecure requests
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Security-Policy", "upgrade-insecure-requests")
+			next.ServeHTTP(w, r)
+		})
+	})
+
+	// for testing
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello World\n"))
+	})
+
+	// asset file server
+	r.Get("/a/{hash}", assets.AssetFS(ctx))
+
+	return r
 }

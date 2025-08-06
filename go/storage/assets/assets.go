@@ -3,6 +3,7 @@ package assets
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	"github.com/Data-Corruption/lmdb-go/lmdb"
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/go-chi/chi/v5"
-	"github.com/minio/sha256-simd"
 )
 
 /*

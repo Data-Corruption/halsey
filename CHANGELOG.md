@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.4] - 2025-08-05
+
+- Fixed server headers
+- Added command registration control to /update command
+
 ## [v0.2.3] - 2025-08-03
 
 - Update test

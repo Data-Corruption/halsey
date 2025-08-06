@@ -67,59 +67,24 @@ func OnGuildsReady(ctx context.Context, registerCommands bool, event *events.Gui
 		return
 	}
 
-	// handle update command response
-	// get updateFollowup from config
-	updateFollowup, err := config.Get[string](ctx, "updateFollowup")
+	// handle /update induced restarts
+	updateFollowupRC, err := handleUpdateRestarts(ctx)
 	if err != nil {
-		xlog.Error(ctx, "failed to get updateFollowup from config: %w", err)
+		xlog.Error(ctx, "failed to handle update restarts: %w", err)
 		return
 	}
 
 	// register commands if updateFollowup is set or manually requested
-	if updateFollowup != "" || registerCommands {
+	if updateFollowupRC || registerCommands {
 		xlog.Info(ctx, "Registering commands...")
 		registerCmds(ctx)
-	}
-
-	if updateFollowup != "" {
-		// split event token and message ID
-		parts := strings.Split(updateFollowup, "|")
-		if len(parts) != 2 {
-			xlog.Error(ctx, "updateFollowup format is invalid, expected '<event token>|<message ID>', got: ", updateFollowup)
-			return
-		}
-
-		// clear updateFollowup from config
-		if err := config.Set(ctx, "updateFollowup", ""); err != nil {
-			xlog.Error(ctx, "failed to clear updateFollowup in config: %w", err)
-			return
-		}
-
-		// parse into snowflake
-		messageID, err := snowflake.Parse(parts[1])
-		if err != nil {
-			xlog.Error(ctx, "failed to parse message ID into snowflake: %w", err)
-			return
-		}
-
-		// get current version from context
-		version, ok := ctx.Value("appVersion").(string)
-		if !ok {
-			xlog.Error(ctx, "failed to get appVersion from context")
-			return
-		}
-
-		// update the followup message
-		_, err = disc.Client.Rest.UpdateFollowupMessage(disc.Client.ApplicationID, parts[0], messageID, discord.NewMessageUpdateBuilder().
-			SetContentf("Updated to version %s successfully!", version).Build())
-		if err != nil {
-			xlog.Error(ctx, "failed to update followup message: %w", err)
-		}
 	}
 
 	// TODO: start backup service
 
 }
+
+// helpers
 
 func registerCmds(ctx context.Context) {
 	// get command creation data
@@ -169,4 +134,56 @@ func addNewGuildToDB(ctx context.Context, txn *lmdb.Txn, dbi lmdb.DBI, id, name 
 		return fmt.Errorf("failed to marshal guild synctube URL for %s: %w", id, err)
 	}
 	return nil
+}
+
+// handles when this startup is after a /update command, returns true if bot should register commands
+func handleUpdateRestarts(ctx context.Context) (bool, error) {
+	// get updateFollowup from config then clear it
+	updateFollowup, err := config.Get[string](ctx, "updateFollowup")
+	if err != nil {
+		xlog.Error(ctx, "failed to get updateFollowup from config: %w", err)
+		return false, err
+	}
+	if err := config.Set(ctx, "updateFollowup", ""); err != nil {
+		xlog.Error(ctx, "failed to clear updateFollowup in config: %w", err)
+		return false, err
+	}
+
+	// if not an update restart, return
+	if updateFollowup == "" {
+		return false, nil
+	}
+
+	// parse updateFollowup
+	parts := strings.SplitN(updateFollowup, "|", 3)
+	if len(parts) != 3 {
+		xlog.Error(ctx, "invalid updateFollowup format")
+		return false, nil
+	}
+
+	interactionToken, messageIDStr, updateFollowupRC := parts[0], parts[1], parts[2]
+
+	// get message ID
+	messageID, err := snowflake.Parse(messageIDStr)
+	if err != nil {
+		xlog.Error(ctx, "failed to parse message ID into snowflake: %w", err)
+		return false, nil
+	}
+
+	// get current version from context
+	version, ok := ctx.Value("appVersion").(string)
+	if !ok {
+		xlog.Error(ctx, "failed to get appVersion from context")
+		return false, nil
+	}
+
+	// update the followup message
+	_, err = disc.Client.Rest.UpdateFollowupMessage(disc.Client.ApplicationID, interactionToken, messageID, discord.NewMessageUpdateBuilder().
+		SetContentf("Updated to version %s successfully!", version).Build())
+	if err != nil {
+		xlog.Error(ctx, "failed to update followup message: %w", err)
+		// don't return here since err could be due to user deleting the message or something
+	}
+
+	return updateFollowupRC == "true", nil
 }

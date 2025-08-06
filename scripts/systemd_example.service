@@ -1,0 +1,20 @@
+[Unit]
+Description=Halsey Discord Bot
+After=network.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+User=EXAMPLE_USER
+Environment=HOME=/home/EXAMPLE_USER
+Environment=PATH=/home/EXAMPLE_USER/.pyenv/shims:/usr/local/bin:/usr/bin:/bin
+WorkingDirectory=/home/EXAMPLE_USER
+ExecStart=/home/EXAMPLE_USER/.local/bin/halsey run
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=halsey
+
+[Install]
+WantedBy=multi-user.target

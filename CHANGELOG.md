@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.11] - 2025-08-06
+
+- trying mp4s
+
 ## [v0.2.10] - 2025-08-06
 
 - added webm mime support

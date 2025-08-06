@@ -6,6 +6,7 @@ import (
 	"halsey/go/disc"
 	"halsey/go/storage/assets"
 	"halsey/go/storage/config"
+	"halsey/go/x"
 	"halsey/go/xnet"
 	"os"
 	"path/filepath"
@@ -107,7 +108,8 @@ func youtube(ctx context.Context, sourceMessage *discord.Message, url string) er
 		if useTLS {
 			hURL += "s"
 		}
-		hURL += "://" + hostname + server.Addr() + "/a/" + name
+		addr := x.Ternary(server.Addr() != ":80" && server.Addr() != ":443", server.Addr(), "")
+		hURL += "://" + hostname + addr + "/a/" + name
 		xlog.Debugf(ctx, "File %s added to assets, URL: %s", outPath, hURL)
 		fmt.Println("File added to assets, URL:", hURL)
 

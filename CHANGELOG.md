@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.20] - 2025-08-07
+
+- another juan
+
 ## [v0.2.19] - 2025-08-07
 
 - another juan 

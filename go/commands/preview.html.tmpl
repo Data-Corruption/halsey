@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Video Preview</title>
+  <!-- Open Graph video -->
+  <meta property="og:type"        content="video">
+  <meta property="og:video"       content="{{ .URL }}">
+  <meta property="og:video:type"  content="{{ .Mime }}">
+  <meta property="og:video:width" content="{{ .Width }}">
+  <meta property="og:video:height"content="{{ .Height }}">
+  <!-- Twitter player (optional but increases consistency) -->
+  <meta name="twitter:card"       content="player">
+  <meta name="twitter:player"     content="{{ .URL }}">
+  <meta name="twitter:player:width"  content="{{ .Width }}">
+  <meta name="twitter:player:height" content="{{ .Height }}">
+</head>
+<body>
+  <video controls width="100%" src="{{ .URL }}"></video>
+</body>
+</html>

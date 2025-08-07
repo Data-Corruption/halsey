@@ -8,6 +8,7 @@ import (
 	"halsey/go/disc/listeners"
 	"halsey/go/storage/assets"
 	"halsey/go/storage/config"
+	"html/template"
 	"net/http"
 
 	"github.com/Data-Corruption/stdx/xhttp"
@@ -137,6 +138,17 @@ func startBot(ctx context.Context, registerCommands bool) error {
 	return nil
 }
 
+type PreviewData struct {
+	URL    string
+	Mime   string
+	Width  int
+	Height int
+}
+
+//go:embed preview.html.tmpl
+var tmplRaw []byte
+var tmpl *template.Template
+
 func buildRouter(ctx context.Context) *chi.Mux {
 	r := chi.NewRouter()
 
@@ -152,8 +164,30 @@ func buildRouter(ctx context.Context) *chi.Mux {
 		w.Write(helloWorldHTML)
 	})
 
+	// load preview template
+	var err error
+	tmpl, err = template.New("preview").Parse(string(tmplRaw))
+	if err != nil {
+		xlog.Errorf(ctx, "failed to parse preview template: %s", err)
+		return nil
+	}
+
+	r.Get("/p/{hash}", previewHandler)
+
 	// serve assets
 	r.HandleFunc("/a/{hash}", assets.AssetFS(ctx))
 
 	return r
+}
+
+func previewHandler(w http.ResponseWriter, r *http.Request) {
+	hash := chi.URLParam(r, "hash")
+	videoURL := fmt.Sprintf("https://beta.regfile.net/a/%s", hash)
+	data := PreviewData{
+		URL:    videoURL,
+		Mime:   "video/mp4",
+		Width:  1280,
+		Height: 720,
+	}
+	tmpl.Execute(w, data)
 }

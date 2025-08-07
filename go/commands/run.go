@@ -137,6 +137,26 @@ func startBot(ctx context.Context, registerCommands bool) error {
 	return nil
 }
 
+type rangeStrippingWriter struct{ http.ResponseWriter }
+
+func (w *rangeStrippingWriter) WriteHeader(status int) {
+	hdr := w.Header()
+	hdr.Del("Accept-Ranges")
+	hdr.Del("Content-Range")
+	w.ResponseWriter.WriteHeader(status)
+}
+
+// removeRangesMiddleware drops any Range header from req and response.
+func removeRangesMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// delete the incoming Range header
+		r.Header.Del("Range")
+		// also strip the outgoing headers
+		sw := &rangeStrippingWriter{ResponseWriter: w}
+		next.ServeHTTP(sw, r)
+	})
+}
+
 func buildRouter(ctx context.Context) *chi.Mux {
 	r := chi.NewRouter()
 
@@ -150,6 +170,9 @@ func buildRouter(ctx context.Context) *chi.Mux {
 
 	// setup recovery middleware
 	r.Use(middleware.Recoverer)
+
+	// remove range headers
+	r.Use(removeRangesMiddleware)
 
 	/* temp remove cause disc might not like it when unfurling?
 	// set content security policy to upgrade insecure requests

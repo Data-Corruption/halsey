@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.12] - 2025-08-06
+
+- flyin blind baby
+
 ## [v0.2.11] - 2025-08-06
 
 - trying mp4s

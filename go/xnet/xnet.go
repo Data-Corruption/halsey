@@ -46,17 +46,17 @@ func yt_dlp(rawURL string) (string, error) {
 		return "", fmt.Errorf("yt-dlp binary not found in PATH: %w", err)
 	}
 	// gen out file
-	outFile, err := os.CreateTemp("", "*.mp4")
+	outFile, err := os.CreateTemp("", "*.webm")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
 	outFile.Close() // close so yt-dlp can write to it
 	outPath := outFile.Name()
 	// run yt-dlp command
-	cmd := exec.Command("yt-dlp", "-S", "ext:mp4:m4a", "--recode-video", "mp4", "--force-overwrites", "-o", outPath, rawURL)
+	cmd := exec.Command("yt-dlp", "--force-overwrites", "-o", outPath, rawURL)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("yt-dlp failed: %v\n%s", err, out)
+		return "", fmt.Errorf("yt-dlp command failed: %w\n%s", err, out)
 	}
 	return outPath, nil
 }

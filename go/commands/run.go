@@ -137,23 +137,37 @@ func startBot(ctx context.Context, registerCommands bool) error {
 	return nil
 }
 
-type rangeStrippingWriter struct{ http.ResponseWriter }
+type rangeStrippingWriter struct {
+	http.ResponseWriter
+	headerStripped bool
+}
+
+func (w *rangeStrippingWriter) strip() {
+	if !w.headerStripped {
+		h := w.Header()
+		h.Del("Content-Range")
+		w.headerStripped = true
+	}
+}
 
 func (w *rangeStrippingWriter) WriteHeader(status int) {
-	hdr := w.Header()
-	hdr.Del("Accept-Ranges")
-	hdr.Del("Content-Range")
+	w.strip()
 	w.ResponseWriter.WriteHeader(status)
 }
 
-// removeRangesMiddleware drops any Range header from req and response.
+func (w *rangeStrippingWriter) Write(b []byte) (int, error) {
+	w.strip()
+	return w.ResponseWriter.Write(b)
+}
+
+// removeRangesMiddleware now only deletes the incoming header.
+// it does *not* touch Accept-Ranges.
 func removeRangesMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// delete the incoming Range header
+		// drop the incoming Range header
 		r.Header.Del("Range")
-		// also strip the outgoing headers
-		sw := &rangeStrippingWriter{ResponseWriter: w}
-		next.ServeHTTP(sw, r)
+		// wrap the writer
+		next.ServeHTTP(&rangeStrippingWriter{ResponseWriter: w}, r)
 	})
 }
 

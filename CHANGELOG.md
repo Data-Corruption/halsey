@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.18] - 2025-08-07
+
+- another juan 
+
 ## [v0.2.17] - 2025-08-07
 
 - asset handler supports seeking now 

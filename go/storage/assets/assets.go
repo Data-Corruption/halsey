@@ -67,6 +67,10 @@ func AssetFS(ctx context.Context) http.HandlerFunc {
 			return
 		}
 
+		// add headers
+		w.Header().Set("Cache-Control", "max-age=31536000, public")
+		w.Header().Set("Pragma", "public")
+
 		// serve content
 		http.ServeContent(w, r, fi.Name(), fi.ModTime(), f)
 	}

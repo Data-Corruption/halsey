@@ -35,19 +35,40 @@ func init() {
 // handle /a/{hash} requests
 func AssetFS(ctx context.Context) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// get hash from URL
 		hash := chi.URLParam(r, "hash")
 		if len(hash) < 4 {
 			http.Error(w, "Invalid asset hash", http.StatusBadRequest)
 			return
 		}
-		// get storage path
+
+		// get asset path
 		storagePath := storagepath.FromContext(ctx)
 		if storagePath == "" {
 			http.Error(w, "Storage path not set in context", http.StatusInternalServerError)
 			return
 		}
 		assetPath := filepath.Join(storagePath, ASSET_DIR, hash[:2], hash[2:4], hash)
-		http.ServeFile(w, r, assetPath)
+
+		// get file
+		f, err := os.Open(assetPath)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer f.Close()
+		fi, err := f.Stat()
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if fi.IsDir() {
+			http.NotFound(w, r)
+			return
+		}
+
+		// serve content
+		http.ServeContent(w, r, fi.Name(), fi.ModTime(), f)
 	}
 }
 

@@ -53,7 +53,7 @@ func yt_dlp(rawURL string) (string, error) {
 	outFile.Close() // close so yt-dlp can write to it
 	outPath := outFile.Name()
 	// run yt-dlp command
-	cmd := exec.Command("yt-dlp", "--force-overwrites", "-o", outPath, rawURL)
+	cmd := exec.Command("yt-dlp", "--no-playlist", "--force-overwrites", "-o", outPath, rawURL)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("yt-dlp command failed: %w\n%s", err, out)

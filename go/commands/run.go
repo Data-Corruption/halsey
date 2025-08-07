@@ -137,78 +137,22 @@ func startBot(ctx context.Context, registerCommands bool) error {
 	return nil
 }
 
-type rangeStrippingWriter struct {
-	http.ResponseWriter
-	headerStripped bool
-}
-
-func (w *rangeStrippingWriter) strip() {
-	if !w.headerStripped {
-		h := w.Header()
-		h.Del("Content-Range")
-		w.headerStripped = true
-	}
-}
-
-func (w *rangeStrippingWriter) WriteHeader(status int) {
-	w.strip()
-	w.ResponseWriter.WriteHeader(status)
-}
-
-func (w *rangeStrippingWriter) Write(b []byte) (int, error) {
-	w.strip()
-	return w.ResponseWriter.Write(b)
-}
-
-// removeRangesMiddleware now only deletes the incoming header.
-// it does *not* touch Accept-Ranges.
-func removeRangesMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// drop the incoming Range header
-		r.Header.Del("Range")
-		// wrap the writer
-		next.ServeHTTP(&rangeStrippingWriter{ResponseWriter: w}, r)
-	})
-}
-
 func buildRouter(ctx context.Context) *chi.Mux {
 	r := chi.NewRouter()
 
-	// setup logger
-	logger := xlog.FromContext(ctx)
-	formatter := &middleware.DefaultLogFormatter{
-		Logger:  logger,
+	// thin logging & recovery
+	r.Use(middleware.RequestLogger(&middleware.DefaultLogFormatter{
+		Logger:  xlog.FromContext(ctx),
 		NoColor: true,
-	}
-	r.Use(middleware.RequestLogger(formatter))
-
-	// setup recovery middleware
+	}))
 	r.Use(middleware.Recoverer)
 
-	// remove range headers
-	r.Use(removeRangesMiddleware)
-
-	/* temp remove cause disc might not like it when unfurling?
-	// set content security policy to upgrade insecure requests
-	r.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Security-Policy", "default-src 'self'; "+
-				"object-src 'none'; "+
-				"base-uri 'self'; "+
-				"upgrade-insecure-requests")
-			next.ServeHTTP(w, r)
-		})
-	})
-	*/
-
-	// for testing
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	// test landing
+	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(helloWorldHTML)
 	})
 
-	// asset file server
-	r.Method("GET", "/a/{hash}", assets.AssetFS(ctx))
-	r.Method("HEAD", "/a/{hash}", assets.AssetFS(ctx))
-
+	// serve assets – HEAD is implicit
+	r.Get("/a/{hash}", assets.AssetFS(ctx))
 	return r
 }

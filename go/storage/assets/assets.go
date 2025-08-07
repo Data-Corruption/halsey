@@ -28,6 +28,7 @@ file server router handles simple conversation from `/a/<hash>.ext` to path.
 const ASSET_DIR = "assets"
 
 func init() {
+	mime.AddExtensionType(".mp4", "video/mp4") // just in case idk
 	mime.AddExtensionType(".webm", "video/webm")
 }
 

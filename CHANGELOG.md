@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.16] - 2025-08-07
+
+- another one
+
 ## [v0.2.15] - 2025-08-07
 
 - another one

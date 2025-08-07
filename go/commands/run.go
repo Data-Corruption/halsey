@@ -152,7 +152,8 @@ func buildRouter(ctx context.Context) *chi.Mux {
 		w.Write(helloWorldHTML)
 	})
 
-	// serve assets – HEAD is implicit
-	r.Get("/a/{hash}", assets.AssetFS(ctx))
+	// serve assets
+	r.HandleFunc("/a/{hash}", assets.AssetFS(ctx))
+
 	return r
 }

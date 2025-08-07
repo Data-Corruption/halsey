@@ -45,18 +45,35 @@ func yt_dlp(rawURL string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("yt-dlp binary not found in PATH: %w", err)
 	}
+	// gen int file
+	intFile, err := os.CreateTemp("", "*.mp4")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	intFile.Close() // close so yt-dlp can write to it
+	intPath := intFile.Name()
 	// gen out file
-	outFile, err := os.CreateTemp("", "*.webm")
+	outFile, err := os.CreateTemp("", "*.mp4")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
 	outFile.Close() // close so yt-dlp can write to it
 	outPath := outFile.Name()
 	// run yt-dlp command
-	cmd := exec.Command("yt-dlp", "--no-playlist", "--force-overwrites", "-o", outPath, rawURL)
+	cmd := exec.Command("yt-dlp", "-S", "ext:mp4:m4a", "--recode-video", "mp4", "--no-playlist", "--force-overwrites", "-o", intPath, rawURL)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("yt-dlp command failed: %w\n%s", err, out)
+	}
+	// repackage with moov atom up front
+	cmd = exec.Command("ffmpeg", "-y", "-i", intPath, "-movflags", "faststart", outPath)
+	out, err = cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("ffmpeg command failed: %w\n%s", err, out)
+	}
+	// cleanup intermediate file
+	if err := os.Remove(intPath); err != nil {
+		return "", fmt.Errorf("failed to remove intermediate file %s: %w", intPath, err)
 	}
 	return outPath, nil
 }

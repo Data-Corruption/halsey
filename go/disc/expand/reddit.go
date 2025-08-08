@@ -4,157 +4,106 @@ import (
 	"context"
 	"fmt"
 	"halsey/go/disc"
-	"halsey/go/storage/assets"
 	"halsey/go/storage/config"
 	"halsey/go/xhtml"
 	"halsey/go/xnet"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/disgoorg/disgo/discord"
 	"golang.org/x/net/html"
 )
 
+type TextScrapeResult struct{}
 type BasicScrapeResult struct {
 	Path string // Path to the downloaded media file in the default temp directory.
 }
 type LinkScrapeResult struct {
 	Url string // Could be anything, but usually a link to an external site, often news.
 }
-
-/*
 type GalleryScrapeResult struct {
 	Paths []string // Paths to the downloaded media files in the default temp directory.
 }
-*/
 
 func reddit(ctx context.Context, sourceMessage *discord.Message, url string) error {
 	// create status message
-	sp := disc.GetSpinnerEmoji(ctx)
-	statusMsg, err := disc.Client.Rest.CreateMessage(sourceMessage.ChannelID, discord.NewMessageCreateBuilder().
-		SetMessageReferenceByID(sourceMessage.ID).
-		SetContent(sp+" Parsing Reddit Post... ").
-		Build())
+	statusMsg, err := createStatusMessage(ctx, sourceMessage, "Downloading Reddit Post...")
 	if err != nil {
-		return fmt.Errorf("failed to create message: %w", err)
+		return fmt.Errorf("failed to create status message: %w", err)
 	}
 
 	// scrape reddit post
 	res, publicErr, err := scrapeRedditPost(ctx, sourceMessage, url)
 	if err != nil {
-		updateStatusMessage(ctx, statusMsg, false, publicErr)
+		failStatusMessage(ctx, statusMsg, publicErr, 0)
 		return fmt.Errorf("failed to scrape reddit post: %w", err)
 	}
 
-	// get upload size limit
-	uploadSizeLimitMB, err := config.Get[uint](ctx, "uploadSizeLimitMB")
-	if err != nil {
-		updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to get upload size limit")
-		return fmt.Errorf("failed to get upload size limit: %w", err)
-	}
-	uploadSizeLimit := int64(uploadSizeLimitMB-2) * 1024 * 1024 // Convert MB to bytes
-
 	switch v := res.(type) {
+	case TextScrapeResult:
+		return disc.Client.Rest.DeleteMessage(statusMsg.ChannelID, statusMsg.ID)
 	case BasicScrapeResult:
-		updateStatusMessage(ctx, statusMsg, true, "Uploading...")
+		updateStatusMessage(ctx, statusMsg, "Uploading Media...")
+
+		// get upload size limit
+		uploadSizeLimitMB, err := config.Get[uint](ctx, "uploadSizeLimitMB")
+		if err != nil {
+			failStatusMessage(ctx, statusMsg, "Internal error: failed to get upload size limit", 0)
+			return fmt.Errorf("failed to get upload size limit: %w", err)
+		}
+		uploadSizeLimit := int64(uploadSizeLimitMB-2) * 1024 * 1024 // Convert MB to bytes
+
+		// open file
 		file, err := os.Open(v.Path)
 		if err != nil {
-			updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to open file")
+			failStatusMessage(ctx, statusMsg, "Internal error: failed to open file", 0)
 			return fmt.Errorf("failed to open file %s: %w", v.Path, err)
 		}
+		defer func() {
+			if err := file.Close(); err != nil {
+				xlog.Errorf(ctx, "failed to close file %s: %s", v.Path, err)
+			}
+			if err := os.Remove(v.Path); err != nil {
+				xlog.Errorf(ctx, "failed to remove file %s: %s", v.Path, err)
+			}
+		}()
+
+		// check size
 		fileInfo, err := file.Stat()
 		if err != nil {
-			file.Close()
-			os.Remove(v.Path)
-			updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to get file info")
+			failStatusMessage(ctx, statusMsg, "Internal error: failed to get file info", 0)
 			return fmt.Errorf("failed to get file info for %s: %w", v.Path, err)
 		}
-		// if too big, close and add to self hosted assets, otherwise defer cleanup and upload
+		if fileInfo.Size() <= 0 {
+			failStatusMessage(ctx, statusMsg, "Internal error: Downloaded file is empty", 0)
+			return fmt.Errorf("downloaded file %s is empty", v.Path)
+		}
 		if fileInfo.Size() > uploadSizeLimit {
-			xlog.Debugf(ctx, "File %s is too big (%d bytes), adding to self-hosted assets", v.Path, fileInfo.Size())
-			// get hostname
-			hostname, err := config.Get[string](ctx, "hostname")
-			if err != nil {
-				file.Close()
-				os.Remove(v.Path)
-				updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to get hostname")
-				return fmt.Errorf("failed to get hostname: %w", err)
-			}
-			if hostname == "" {
-				xlog.Debug(ctx, "Hostname is empty, aborting self-hosted asset upload")
-				file.Close()
-				os.Remove(v.Path)
-				updateStatusMessage(ctx, statusMsg, false, "Media exceeds size limit and bot is not configured to self-host assets")
-				return nil
-			}
-			// get useTLS
-			useTLS, err := config.Get[bool](ctx, "useTLS")
-			if err != nil {
-				file.Close()
-				os.Remove(v.Path)
-				updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to get useTLS")
-				return fmt.Errorf("failed to get useTLS: %w", err)
-			}
-
-			file.Close()
-			name, err := assets.Add(ctx, file.Name())
-			os.Remove(v.Path) // remove temp file
-			if err != nil {
-				updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to add file to assets")
-				return fmt.Errorf("failed to add file %s to assets: %w", file.Name(), err)
-			}
-
-			hURL := "http"
-			if useTLS {
-				hURL += "s"
-			}
-			hURL += "://" + hostname + "/a/" + name
-			xlog.Debugf(ctx, "File %s added to assets, URL: %s", v.Path, hURL)
-
-			// create message with asset link
-			if _, err := disc.Client.Rest.CreateMessage(sourceMessage.ChannelID, discord.NewMessageCreateBuilder().
-				SetFlags(discord.MessageFlagIsComponentsV2).
-				AddComponents(
-					discord.NewActionRow(discord.NewLinkButton("Open In Reddit", url)),
-					discord.NewMediaGallery(
-						discord.MediaGalleryItem{Media: discord.UnfurledMediaItem{URL: hURL}},
-					),
-					discord.NewTextDisplayf("`%s` • <t:%d:f>", sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()),
-				).
-				Build()); err != nil {
-				updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to create message")
-				return fmt.Errorf("failed to create message: %w", err)
-			}
-		} else {
-			xlog.Debugf(ctx, "File %s is within size limit (%d bytes), uploading directly", v.Path, fileInfo.Size())
-			defer func() {
-				if err := file.Close(); err != nil {
-					xlog.Errorf(ctx, "failed to close file %s: %s", v.Path, err)
-				}
-				if err := os.Remove(v.Path); err != nil {
-					xlog.Errorf(ctx, "failed to remove file %s: %s", v.Path, err)
-				}
-			}()
-			// upload file
-			aName := filepath.Base(v.Path)
-			if _, err := disc.Client.Rest.CreateMessage(sourceMessage.ChannelID, discord.NewMessageCreateBuilder().
-				SetFlags(discord.MessageFlagIsComponentsV2).
-				AddComponents(
-					discord.NewActionRow(discord.NewLinkButton("Open In Reddit", url)),
-					discord.NewMediaGallery(
-						discord.MediaGalleryItem{Media: discord.UnfurledMediaItem{URL: "attachment://" + aName}},
-					),
-					discord.NewTextDisplayf("`%s` • <t:%d:f>", sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()),
-				).
-				AddFile(aName, "", file).
-				Build()); err != nil {
-				updateStatusMessage(ctx, statusMsg, false, "Internal error: failed to create message")
-				return fmt.Errorf("failed to create message: %w", err)
-			}
+			xlog.Debugf(ctx, "File %s is too big (%d bytes), not uploading", v.Path, fileInfo.Size())
+			return failStatusMessage(ctx, statusMsg, fmt.Sprintf("File is too big (%d bytes), not uploading", fileInfo.Size()), 5*time.Second)
 		}
 
-		// delete status and source message
+		// message channel / upload file
+		xlog.Debugf(ctx, "Uploading file %s (%d bytes)", v.Path, fileInfo.Size())
+		aName := filepath.Base(v.Path)
+		if _, err := disc.Client.Rest.CreateMessage(sourceMessage.ChannelID, discord.NewMessageCreateBuilder().
+			SetFlags(discord.MessageFlagIsComponentsV2).
+			AddComponents(
+				discord.NewActionRow(discord.NewLinkButton("Open In Reddit", url)),
+				discord.NewMediaGallery(
+					discord.MediaGalleryItem{Media: discord.UnfurledMediaItem{URL: "attachment://" + aName}},
+				),
+				discord.NewTextDisplayf("`%s` • <t:%d:f>", sourceMessage.Author.Username, sourceMessage.CreatedAt.Unix()),
+			).
+			AddFile(aName, "", file).
+			Build()); err != nil {
+			failStatusMessage(ctx, statusMsg, "Internal error: failed to create message", 0)
+			return fmt.Errorf("failed to create message: %w", err)
+		}
+
+		// delete status and source message only if everything went well
 		if err := disc.Client.Rest.DeleteMessage(statusMsg.ChannelID, statusMsg.ID); err != nil {
 			xlog.Errorf(ctx, "failed to delete status message: %s", err)
 		}
@@ -168,15 +117,15 @@ func reddit(ctx context.Context, sourceMessage *discord.Message, url string) err
 		if err != nil {
 			return fmt.Errorf("failed to create message: %w", err)
 		}
-		// delete status message
+		// delete status and source message only if everything went well
 		if err := disc.Client.Rest.DeleteMessage(statusMsg.ChannelID, statusMsg.ID); err != nil {
 			xlog.Errorf(ctx, "failed to delete status message: %s", err)
 		}
-		// delete the original message
 		return disc.Client.Rest.DeleteMessage(sourceMessage.ChannelID, sourceMessage.ID)
-	// case GalleryScrapeResult:
+	case GalleryScrapeResult:
+		return disc.Client.Rest.DeleteMessage(statusMsg.ChannelID, statusMsg.ID)
 	default:
-		updateStatusMessage(ctx, statusMsg, false, "Internal error: unknown scrape result type")
+		failStatusMessage(ctx, statusMsg, "Internal error: unknown scrape result type", 0)
 		return fmt.Errorf("unknown scrape result type: %T", res)
 	}
 }
@@ -219,13 +168,16 @@ func scrapeRedditPost(ctx context.Context, statusMsg *discord.Message, url strin
 	}
 	// handle post types
 	switch postType {
+	case "text":
+		xlog.Debugf(ctx, "Found text post: %s", contentHref)
+		return TextScrapeResult{}, "", nil
 	case "link":
 		xlog.Debugf(ctx, "Found link post: %s", contentHref)
 		return LinkScrapeResult{Url: contentHref}, "", nil
 	case "image", "gif":
 		xlog.Debugf(ctx, "Found %s media: %s", postType, contentHref)
-		updateStatusMessage(ctx, statusMsg, true, fmt.Sprintf("Downloading %s media...", postType))
-		if outPath, err := xnet.DownloadMedia(contentHref); err != nil {
+		updateStatusMessage(ctx, statusMsg, fmt.Sprintf("Downloading %s media...", postType))
+		if outPath, err := xnet.DownloadMedia(contentHref, 5*time.Minute); err != nil {
 			return nil, "Failed to download media", fmt.Errorf("failed to download media: %w", err)
 		} else {
 			return BasicScrapeResult{Path: outPath}, "", nil
@@ -243,14 +195,15 @@ func scrapeRedditPost(ctx context.Context, statusMsg *discord.Message, url strin
 			return nil, "No src attribute found in shreddit-player or shreddit-player-2 element", fmt.Errorf("no src attribute found in shreddit-player or shreddit-player-2 element")
 		}
 		xlog.Debugf(ctx, "Found video media: %s", src)
-		updateStatusMessage(ctx, statusMsg, true, "Downloading video...")
-		if outPath, err := xnet.DownloadMedia(src); err != nil {
+		updateStatusMessage(ctx, statusMsg, "Downloading video...")
+		if outPath, err := xnet.DownloadMedia(src, 5*time.Minute); err != nil {
 			return nil, "Failed to download media", fmt.Errorf("failed to download media: %w", err)
 		} else {
 			return BasicScrapeResult{Path: outPath}, "", nil
 		}
-	/* skipping gallery for now, might finish later
 	case "gallery":
+		return GalleryScrapeResult{}, "", nil
+		/* skipping gallery for now, might finish later
 		output := GalleryScrapeResult{Paths: []string{}}
 		carousel := xhtml.FindElementByTag(doc, "gallery-carousel")
 		if carousel == nil {
@@ -286,7 +239,7 @@ func scrapeRedditPost(ctx context.Context, statusMsg *discord.Message, url strin
 			}
 		}
 		return output, "", nil
-	*/
+		*/
 	default:
 		return nil, "Unsupported post type: '%s'", fmt.Errorf("unsupported post type: '%s'", postType)
 	}

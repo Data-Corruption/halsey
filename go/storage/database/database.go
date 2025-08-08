@@ -20,8 +20,6 @@ Config - see config package for details.
 
 Backup
 	<message id> -> gzipped message
-Assets
-	ref.<hash> -> []string IDs of messages referencing it.
 Favorites
 	<source message id> -> ID of copy in fav channel
 Channels
@@ -45,7 +43,6 @@ const (
 	GuildsDBIName    = "guilds"
 	ChannelsDBIName  = "channels"
 	FavoritesDBIName = "favorites"
-	AssetsDBIName    = "assets"
 	BackupDBIName    = "backup"
 	// Add more DBI names as needed, e.g., UserDBIName, SessionDBIName, etc.
 	// WARNING: If you add more DBIs you'll need to clean and reinitialize the database from scratch pretty sure.
@@ -71,7 +68,7 @@ func New(ctx context.Context) (*wrap.DB, error) {
 		return nil, errors.New("nexus data path not set before database initialization")
 	}
 	db, _, err := wrap.New(filepath.Join(path, "db"),
-		[]string{ConfigDBIName, GuildsDBIName, ChannelsDBIName, FavoritesDBIName, AssetsDBIName, BackupDBIName},
+		[]string{ConfigDBIName, GuildsDBIName, ChannelsDBIName, FavoritesDBIName, BackupDBIName},
 	)
 	if err != nil {
 		db.Close()

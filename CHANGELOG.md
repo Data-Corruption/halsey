@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.21] - 2025-08-07
+
+Gave up on self hosting assets that unfurl.
+
 ## [v0.2.20] - 2025-08-07
 
 - another juan

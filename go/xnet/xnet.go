@@ -141,12 +141,7 @@ func ytDLP(ctx context.Context, rawURL string) (string, error) {
 	// Always attempt to remove the staging dir; we'll move the file out on success.
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	// Prefer royalty-friendly codecs at <=720p30, fall back sanely.
-	format := `(bv*[vcodec^=av01][height<=720][fps<=30]+ba[acodec=opus]/` +
-		`bv*[vcodec^=vp9][height<=720][fps<=30]+ba[acodec=opus]/` +
-		`b[ext=webm][height<=720][fps<=30])/` +
-		`(bv*[ext=mp4][height<=720][fps<=30]+ba[ext=m4a]/` +
-		`b[ext=mp4][height<=720][fps<=30])`
+	format := `bestvideo[height<=720]+bestaudio/best[height<=720]`
 
 	outTpl := filepath.Join(tmpDir, "clip.%(ext)s")
 	cmd := exec.CommandContext(

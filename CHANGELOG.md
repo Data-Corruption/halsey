@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.2.23] - 2025-08-14
+
+Fixed:
+- youtube expansion
+- reddit short url expansion
+
 ## [v0.2.22] - 2025-08-07
 
 stableish release

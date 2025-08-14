@@ -1,6 +1,7 @@
 package xnet
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -129,6 +131,7 @@ func runCurl(ctx context.Context, rawURL, outPath string) error {
 }
 
 // ytDLP downloads YouTube media via yt-dlp to a temp file and returns its path.
+// no need for mutex or anything, each run gets its own temp dir
 func ytDLP(ctx context.Context, rawURL string) (string, error) {
 	if err := ensureTool("yt-dlp"); err != nil {
 		return "", err
@@ -141,27 +144,51 @@ func ytDLP(ctx context.Context, rawURL string) (string, error) {
 	// Always attempt to remove the staging dir; we'll move the file out on success.
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	format := `bestvideo[height<=720]+bestaudio/best[height<=720]`
-
 	outTpl := filepath.Join(tmpDir, "clip.%(ext)s")
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
 	cmd := exec.CommandContext(
 		ctx, "yt-dlp",
-		"-f", format,
+		"-f", `bestvideo[height<=720]+bestaudio/best[height<=720]`,
+		"-N", "8",
+		"--geo-bypass",
 		"--no-playlist",
 		"--force-overwrites",
-		"-q", "--no-warnings",
+		"-q", "--no-warnings", "--no-progress",
 		"--print", "after_move:filepath",
 		"-o", outTpl,
 		rawURL,
 	)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("yt-dlp failed: %w\n%s", err, out)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("yt-dlp failed: %v\n%s", err, strings.TrimSpace(stderr.String()))
 	}
-	finalPath := strings.TrimSpace(string(out))
+
+	// prefer the last non-empty stdout line that exists on disk
+	var finalPath string
+	for _, ln := range strings.Split(strings.TrimSpace(stdout.String()), "\n") {
+		s := strings.TrimSpace(ln)
+		if s != "" {
+			finalPath = s // will end up last
+		}
+	}
+	if finalPath == "" || !strings.HasPrefix(finalPath, tmpDir) {
+		// fallback: find the newest file in tmpDir matching clip.*
+		matches, _ := filepath.Glob(filepath.Join(tmpDir, "clip.*"))
+		if len(matches) > 0 {
+			sort.Slice(matches, func(i, j int) bool {
+				ai, _ := os.Stat(matches[i])
+				aj, _ := os.Stat(matches[j])
+				return ai.ModTime().After(aj.ModTime())
+			})
+			finalPath = matches[0]
+		}
+	}
 	if finalPath == "" {
-		return "", fmt.Errorf("yt-dlp did not return a filepath:\n%s", out)
+		return "", fmt.Errorf("yt-dlp did not return a filepath; stderr:\n%s", strings.TrimSpace(stderr.String()))
 	}
 
 	// Move the file out to a real temp file and return that path.

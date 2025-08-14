@@ -7,8 +7,11 @@ import (
 	"halsey/go/storage/config"
 	"halsey/go/xhtml"
 	"halsey/go/xnet"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Data-Corruption/stdx/xlog"
@@ -132,7 +135,8 @@ func reddit(ctx context.Context, sourceMessage *discord.Message, url string) err
 
 // scrapeRedditPost scrapes reddit urls for the main media content, downloads them, and returns the file paths.
 // Returns result, public safe error message, and error if any.
-func scrapeRedditPost(ctx context.Context, statusMsg *discord.Message, url string) (any, string, error) {
+func scrapeRedditPost(ctx context.Context, statusMsg *discord.Message, rawURL string) (any, string, error) {
+	url := resolveShortRedditUrl(rawURL)
 	xlog.Debugf(ctx, "Scraping Reddit URL: %s", url)
 	doc := &html.Node{}
 	shredditPost := &html.Node{}
@@ -150,6 +154,8 @@ func scrapeRedditPost(ctx context.Context, statusMsg *discord.Message, url strin
 		if shredditPost == nil {
 			return nil, "No shreddit-post element found", fmt.Errorf("no shreddit-post element found in document")
 		}
+		// check if post was removed
+
 		// get attributes
 		contentHref = xhtml.GetAttribute(shredditPost, "content-href")
 		if contentHref == "" {
@@ -243,4 +249,73 @@ func scrapeRedditPost(ctx context.Context, statusMsg *discord.Message, url strin
 	default:
 		return nil, "Unsupported post type: '%s'", fmt.Errorf("unsupported post type: '%s'", postType)
 	}
+}
+
+// resolveShortRedditUrl resolves reddit short share URLs like /s/<id>
+func resolveShortRedditUrl(rawURL string) string {
+	if !strings.Contains(rawURL, "/s/") {
+		return rawURL
+	}
+	req, _ := http.NewRequest("HEAD", rawURL, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		// don't auto-follow; we want the Location header
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return rawURL
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		loc := resp.Header.Get("Location")
+		if loc != "" {
+			if strings.HasPrefix(loc, "/") {
+				loc = "https://www.reddit.com" + loc
+			}
+
+			// drop query/fragment tracking to avoid share shells
+			pu, err := url.Parse(loc)
+			if err != nil {
+				return loc
+			}
+
+			// strip share/utm noise and unify host
+			pu.RawQuery, pu.Fragment = "", ""
+			switch strings.ToLower(pu.Host) {
+			case "reddit.com", "m.reddit.com", "old.reddit.com":
+				pu.Host = "www.reddit.com"
+			}
+
+			// decode each segment up to twice, then re-encode once
+			ep := pu.EscapedPath() // preserves existing escapes
+			segs := strings.Split(ep, "/")
+			decSegs := make([]string, len(segs))
+			encSegs := make([]string, len(segs))
+			for i, s := range segs {
+				if s == "" {
+					continue
+				}
+				t := s
+				for j := 0; j < 2; j++ { // collapse double literal, e.g. %25xx -> %xx
+					d, err := url.PathUnescape(t)
+					if err != nil || d == t {
+						break
+					}
+					t = d
+				}
+				decSegs[i] = t
+				encSegs[i] = url.PathEscape(t) // single, correct encoding
+			}
+			pu.Path = strings.Join(decSegs, "/")    // decoded (for callers)
+			pu.RawPath = strings.Join(encSegs, "/") // encoded (for HTTP)
+
+			return pu.String()
+		}
+	}
+	return rawURL
 }

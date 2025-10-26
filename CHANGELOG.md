@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.2.25] - 2025-10-26
+
+Added:
+- update-ytdlp command
+
+Fixed:
+- forgot to bump the version
+
 ## [v0.2.24] - 2025-10-26
 
 Added:

@@ -16,7 +16,7 @@ type Example struct {
 */
 
 // Version is the current version of the schema
-const Version = "v1.0.1"
+const Version = "v1.2.0"
 
 // key -> default value
 type schema map[string]valueInterface

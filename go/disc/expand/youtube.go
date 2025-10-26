@@ -20,9 +20,9 @@ var lastytdlpWasErr int64 = 0
 
 func youtube(ctx context.Context, sourceMessage *discord.Message, url string) error {
 	// load state from config
-	enabled, err := config.Get[bool](ctx, "expandYoutube")
+	enabled, err := config.Get[bool](ctx, "expandYouTube")
 	if err != nil {
-		return fmt.Errorf("failed to get expandYoutube from config: %w", err)
+		return fmt.Errorf("failed to get expandYouTube from config: %w", err)
 	}
 	if !enabled {
 		xlog.Debugf(ctx, "YouTube expansion is disabled, skipping")
@@ -50,7 +50,7 @@ func youtube(ctx context.Context, sourceMessage *discord.Message, url string) er
 		if !swapped {
 			// if failed to swap that means the last download also failed. Disable further downloads for now and msg bot channel
 			xlog.Debugf(ctx, "Last ytdlp download also failed, skipping further downloads")
-			err := config.Set(ctx, "expandYoutube", false)
+			err := config.Set(ctx, "expandYouTube", false)
 			if err != nil {
 				xlog.Errorf(ctx, "failed to disable youtube expansion after repeated ytdlp failures: %s", err)
 			}

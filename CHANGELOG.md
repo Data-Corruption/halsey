@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.27] - 2025-10-26
+
+Fixed:
+- fixed expandYouTube key misspelling
+
 ## [v0.2.26] - 2025-10-26
 
 Added:

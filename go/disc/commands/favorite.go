@@ -18,16 +18,12 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
-var sucessMessages = []string{
-	"Added to favorites!",
-	"Favorited!",
+var cuteMessages = []string{
 	"Oh yeah, this is a good one!",
-	"Can you not, I'm in the mid... Ugh fine, favorited.",
 	"Rawr xD uwu owo *pounces on your message*",
-	"Message favorited! :black_heart:",
+	":black_heart:",
 	"Certified banger",
 	"Umm... based department?",
-	"I love this message!",
 	"ngl this is too gay",
 	"ngl this is too straight",
 	"slay queen",
@@ -79,6 +75,16 @@ var sucessMessages = []string{
 	"gotta put a little more ass in that",
 	"i just shit myself",
 	"not unlike the academy award winning film Suicide Squad",
+	"love me some orange juice!",
+	"Don't make a girl a promise, if you know you can't keep it",
+	"It's fine.. I just didn't think It'd be Chinese is all",
+	"*has violent explosive diarrhea*",
+	"If I fits, I sits.",
+	"If i had a body, I'd use it to stay away from this",
+	"Including or not including gang violence?",
+	"this feels like a gio post",
+	"thank god i'm not fucking canadian, holy shit i would immediately launch myself off the nearest bridge",
+	"beep beep",
 }
 
 var favoriteCommand = BotCommand{
@@ -264,7 +270,7 @@ var favoriteCommand = BotCommand{
 			return err
 		} else {
 			_, err = resFollowupMessage(ctx, event, discord.NewMessageCreateBuilder().
-				SetContent(sucessMessages[rand.Intn(len(sucessMessages))]).
+				SetContent(cuteMessages[rand.Intn(len(cuteMessages))]).
 				SetEphemeral(false).
 				Build())
 			if err != nil {

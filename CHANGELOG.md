@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.26] - 2025-10-26
+
+Added:
+- thoughts command
+
 ## [v0.2.25] - 2025-10-26
 
 Added:

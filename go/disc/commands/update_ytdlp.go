@@ -13,6 +13,11 @@ import (
 	"github.com/disgoorg/disgo/events"
 )
 
+const (
+	updateYtdlpTimeout = 30 * time.Second
+	updateYtdlpMaxOut  = 800 // max output characters to keep
+)
+
 var updateYtdlpCommand = BotCommand{
 	IsGlobal:     true,
 	RequireAdmin: true,
@@ -54,7 +59,7 @@ func updateYtdlp() (int, string, error) {
 	ytdlpUpdateMutex.Lock()
 	defer ytdlpUpdateMutex.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), updateYtdlpTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "python3", "-m", "pip", "install", "-U", "yt-dlp[default]")
@@ -78,8 +83,8 @@ func updateYtdlp() (int, string, error) {
 	}
 
 	out := buf.String()
-	if len(out) > 200 {
-		out = out[len(out)-200:]
+	if len(out) > updateYtdlpMaxOut {
+		out = out[len(out)-updateYtdlpMaxOut:]
 	}
 
 	return code, out, err

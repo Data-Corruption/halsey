@@ -31,6 +31,16 @@ type GalleryScrapeResult struct {
 }
 
 func reddit(ctx context.Context, sourceMessage *discord.Message, url string) error {
+	// load state from config
+	enabled, err := config.Get[bool](ctx, "expandReddit")
+	if err != nil {
+		return fmt.Errorf("failed to get expandReddit from config: %w", err)
+	}
+	if !enabled {
+		xlog.Debugf(ctx, "Reddit expansion is disabled, skipping")
+		return nil
+	}
+
 	// create status message
 	statusMsg, err := createStatusMessage(ctx, sourceMessage, "Downloading Reddit Post...")
 	if err != nil {

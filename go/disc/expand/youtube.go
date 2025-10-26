@@ -4,17 +4,31 @@ import (
 	"context"
 	"fmt"
 	"halsey/go/disc"
+	"halsey/go/disc/respond"
 	"halsey/go/storage/config"
 	"halsey/go/xnet"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/disgoorg/disgo/discord"
 )
 
+var lastytdlpWasErr int64 = 0
+
 func youtube(ctx context.Context, sourceMessage *discord.Message, url string) error {
+	// load state from config
+	enabled, err := config.Get[bool](ctx, "expandYoutube")
+	if err != nil {
+		return fmt.Errorf("failed to get expandYoutube from config: %w", err)
+	}
+	if !enabled {
+		xlog.Debugf(ctx, "YouTube expansion is disabled, skipping")
+		return nil
+	}
+
 	// create status message
 	statusMsg, err := createStatusMessage(ctx, sourceMessage, "Downloading Media...")
 	if err != nil {
@@ -32,9 +46,22 @@ func youtube(ctx context.Context, sourceMessage *discord.Message, url string) er
 	// download media
 	outPath, err := xnet.DownloadMedia(url, 5*time.Minute)
 	if err != nil {
+		swapped := atomic.CompareAndSwapInt64(&lastytdlpWasErr, 0, 1)
+		if !swapped {
+			// if failed to swap that means the last download also failed. Disable further downloads for now and msg bot channel
+			xlog.Debugf(ctx, "Last ytdlp download also failed, skipping further downloads")
+			err := config.Set(ctx, "expandYoutube", false)
+			if err != nil {
+				xlog.Errorf(ctx, "failed to disable youtube expansion after repeated ytdlp failures: %s", err)
+			}
+			respond.BotChannel(ctx, "YouTube expansion has been automatically disabled due to repeated download failures. I still can't auto update ytdlp.. *unintellegible gibberish*")
+		}
 		failStatusMessage(ctx, statusMsg, "Internal error: failed to download media", 0)
 		return fmt.Errorf("failed to download media: %w", err)
 	}
+
+	// reset last error flag
+	atomic.StoreInt64(&lastytdlpWasErr, 0)
 
 	// open file
 	file, err := os.Open(outPath)

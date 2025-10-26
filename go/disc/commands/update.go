@@ -74,7 +74,7 @@ var updateCommand = BotCommand{
 
 		// shutdown the server
 		xlog.Info(ctx, "Shutting down server for update...")
-		return server.Shutdown(nil)
+		return server.Shutdown(context.TODO())
 	},
 }
 

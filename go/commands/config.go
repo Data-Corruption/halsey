@@ -74,41 +74,6 @@ var Config = &cli.Command{
 			},
 		},
 		{
-			Name:  "tls",
-			Usage: "Toggle use of TLS for secure connections",
-			Action: func(ctx context.Context, cmd *cli.Command) error {
-				// get
-				useTLS, err := config.Get[bool](ctx, "useTLS")
-				if err != nil {
-					return fmt.Errorf("failed to get useTLS: %w", err)
-				}
-				// set
-				if err := config.Set(ctx, "useTLS", !useTLS); err != nil {
-					return fmt.Errorf("failed to set useTLS: %w", err)
-				}
-				fmt.Printf("useTLS set to %t\n", !useTLS)
-				return nil
-			},
-		},
-		{
-			Name:  "tls-paths",
-			Usage: "Set paths for TLS key and certificate `<key path> <cert path>`",
-			Action: func(ctx context.Context, cmd *cli.Command) error {
-				tlsKeyPath := cmd.Args().Get(0)
-				tlsCertPath := cmd.Args().Get(1)
-
-				// set paths in config
-				if err := config.Set(ctx, "tlsKeyPath", tlsKeyPath); err != nil {
-					return fmt.Errorf("failed to set tlsKeyPath: %w", err)
-				}
-				if err := config.Set(ctx, "tlsCertPath", tlsCertPath); err != nil {
-					return fmt.Errorf("failed to set tlsCertPath: %w", err)
-				}
-				fmt.Printf("TLS paths set: key=%s, cert=%s\n", tlsKeyPath, tlsCertPath)
-				return nil
-			},
-		},
-		{
 			Name:  "log",
 			Usage: "Set the log level `<level>` (levels: none, error, warn, info, debug)",
 			Action: func(ctx context.Context, cmd *cli.Command) error {

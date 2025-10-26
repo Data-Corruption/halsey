@@ -45,27 +45,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to get port from config: %w", err)
 	}
-	useTLS, err := config.Get[bool](ctx, "useTLS")
-	if err != nil {
-		return fmt.Errorf("failed to get useTLS from config: %w", err)
-	}
-	tlsKeyPath, err := config.Get[string](ctx, "tlsKeyPath")
-	if err != nil {
-		return fmt.Errorf("failed to get tlsKeyPath from config: %w", err)
-	}
-	tlsCertPath, err := config.Get[string](ctx, "tlsCertPath")
-	if err != nil {
-		return fmt.Errorf("failed to get tlsCertPath from config: %w", err)
-	}
 
 	// create http server
 	var srv *xhttp.Server
 	srv, err = xhttp.NewServer(&xhttp.ServerConfig{
-		Addr:        fmt.Sprintf(":%d", port),
-		UseTLS:      useTLS,
-		TLSKeyPath:  tlsKeyPath,
-		TLSCertPath: tlsCertPath,
-		Handler:     buildRouter(ctx),
+		Addr:    fmt.Sprintf(":%d", port),
+		UseTLS:  false,
+		Handler: buildRouter(ctx),
 		AfterListen: func() {
 			fmt.Printf("Server is listening on http://localhost%s\n", srv.Addr())
 		},

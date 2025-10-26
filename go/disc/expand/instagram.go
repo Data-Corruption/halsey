@@ -10,6 +10,8 @@ import (
 )
 
 func instagram(ctx context.Context, sourceMessage *discord.Message, url string) error {
+	return nil // Instagram expansion is currently hard disabled
+
 	// change prefix from https://www.instagram.com/ to https://www.ddinstagram.com/
 	mUrl := strings.Replace(url, "https://www.instagram.com/", "https://g.ddinstagram.com/", 1)
 

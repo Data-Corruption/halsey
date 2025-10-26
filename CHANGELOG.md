@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.2.24] - 2025-10-26
+
+Added:
+- expansion enabling/disabling
+- yt expansion auto disables on two consecutive failures
+
 ## [v0.2.23] - 2025-08-14
 
 Fixed:

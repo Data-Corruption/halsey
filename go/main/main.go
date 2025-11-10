@@ -21,7 +21,7 @@ import (
 // Template variables ---------------------------------------------------------
 
 const (
-	name            = "sprout" // root command name, must be filepath safe
+	name            = "halsey" // root command name, must be filepath safe
 	defaultLogLevel = "warn"
 )
 
@@ -157,19 +157,15 @@ func startup(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 	}
 	if updateNotify {
 		// get last update check time from config
-		tStr, err := config.Get[string](ctx, "lastUpdateCheck")
+		t, err := config.Get[time.Time](ctx, "lastUpdateCheck")
 		if err != nil {
 			return ctx, fmt.Errorf("failed to get lastUpdateCheck from config: %w", err)
-		}
-		t, err := time.Parse(time.RFC3339, tStr)
-		if err != nil {
-			return ctx, fmt.Errorf("failed to parse lastUpdateCheck time: %w", err)
 		}
 		// once a day, very lightweight check, to be polite to github
 		if time.Since(t) > 24*time.Hour {
 			xlog.Debug(ctx, "Checking for updates...")
 			// update check time in config
-			if err := config.Set(ctx, "lastUpdateCheck", time.Now().Format(time.RFC3339)); err != nil {
+			if err := config.Set(ctx, "lastUpdateCheck", time.Now()); err != nil {
 				return ctx, fmt.Errorf("failed to set lastUpdateCheck in config: %w", err)
 			}
 			updateAvailable, err := update.Check(ctx)

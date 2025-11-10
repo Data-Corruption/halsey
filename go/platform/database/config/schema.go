@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/disgoorg/snowflake/v2"
+)
 
 /*
 Once used in a released version, this struct cannot be changed.
@@ -14,6 +18,26 @@ type Example struct {
 	x int
 }
 */
+
+type UpdateFollowup struct {
+	InteractionID string       `json:"interactionID"`
+	MessageID     snowflake.ID `json:"messageID"`
+	RegisterCmds  bool         `json:"registerCmds"`
+}
+
+type GeneralSettings struct {
+	BotToken       string       `json:"botToken"`
+	AdminWhitelist []string     `json:"adminWhitelist"`
+	BotChannelID   snowflake.ID `json:"botChannelID"`
+	BioPicURL      string       `json:"bioPicURL"`  // URL to an image for /about
+	BiohPicURL     string       `json:"biohPicURL"` // URL to an image for /send nudes
+	Downloads      struct {     // whether to enable downloading from these platforms. For backup or expanding functionality
+		Instagram bool `json:"instagram"`
+		Reddit    bool `json:"reddit"`
+		Twitter   bool `json:"twitter"`
+		YouTube   bool `json:"youTube"`
+	}
+}
 
 // Version is the current version of the schema
 const Version = "v1.0.0"
@@ -32,8 +56,10 @@ var SchemaRecord = map[string]schema{
 		"host":            &value[string]{"localhost"},
 		"proxyPort":       &value[int]{0}, // port the proxy is listening on, 0 = no proxy. 80/443 will be omitted from URLs
 		"updateNotify":    &value[bool]{true},
-		"lastUpdateCheck": &value[string]{time.Now().Format(time.RFC3339)},
+		"lastUpdateCheck": &value[time.Time]{time.Now()},
 		"updateAvailable": &value[bool]{false},
+		"updateFollowup":  &value[UpdateFollowup]{UpdateFollowup{}},
+		"generalSettings": &value[GeneralSettings]{GeneralSettings{}},
 	},
 	/*
 		"v0.0.2": {

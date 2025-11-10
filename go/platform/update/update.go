@@ -21,8 +21,8 @@ import (
 // Template variables ---------------------------------------------------------
 
 const (
-	RepoURL          = "https://github.com/Data-Corruption/sprout.git"
-	InstallScriptURL = "https://raw.githubusercontent.com/Data-Corruption/sprout/main/scripts/install.sh"
+	RepoURL          = "https://github.com/Data-Corruption/halsey.git"
+	InstallScriptURL = "https://raw.githubusercontent.com/Data-Corruption/halsey/main/scripts/install.sh"
 )
 
 // ----------------------------------------------------------------------------

@@ -1,3 +1,13 @@
+// Package download implements a three-stage media retrieval pipeline:
+//
+//  1. ParseDomain classifies the incoming link so we know which extractor to use.
+//  2. Domain-specific extractors resolve high-level resources (posts, threads, etc.)
+//     into direct media URLs; YouTube/Shorts skip this step and go straight to yt-dlp.
+//  3. DownloadMedia downloads the media URL to a temp file using the appropriate
+//     tool (e.g., ffmpeg, curl) determined by analyzing the URL for a format type.
+//
+// This layering keeps file-level downloads simple to reason about, yet allows the
+// package to accept richer inputs and makes future extractors easy to add.
 package download
 
 import (
@@ -9,15 +19,18 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"sprout/go/platform/x"
 	"strings"
 	"time"
+
+	"github.com/Data-Corruption/stdx/xlog"
 )
 
-const defaultTimeout = 2 * time.Minute
+const defaultTimeout = 5 * time.Minute
 
-// Download parses the URL into a DownloadPlan and executes it.
-func Download(rawURL string, timeout time.Duration) (string, error) {
-	plan, err := Parse(rawURL)
+// DownloadMedia parses the URL into a DownloadPlan and executes it.
+func DownloadMedia(rawURL string, timeout time.Duration) (string, error) {
+	plan, err := ParseMediaURL(rawURL)
 	if err != nil {
 		return "", err
 	}
@@ -37,8 +50,6 @@ func DownloadWithPlan(plan DownloadPlan, timeout time.Duration) (string, error) 
 	defer cancel()
 
 	switch plan.Strategy {
-	case StrategyYouTube:
-		return ytDLP(ctx, plan.URL)
 	case StrategyFFmpeg:
 		return fetchWithTempFile(ctx, plan, "ffmpeg", runFFmpeg)
 	case StrategyDirect:
@@ -46,6 +57,81 @@ func DownloadWithPlan(plan DownloadPlan, timeout time.Duration) (string, error) 
 	default:
 		return "", fmt.Errorf("unsupported download strategy: %s", plan.Strategy)
 	}
+}
+
+// YtDLP downloads YouTube media via yt-dlp to a temp file in its own directory and returns its path.
+// The caller is responsible for cleaning up the file/parent directory when done.
+func YtDLP(ctx context.Context, rawURL string, fullQuality bool, timeout time.Duration) (string, error) {
+	if err := ensureTool("yt-dlp"); err != nil {
+		return "", err
+	}
+
+	tmpDir, err := os.MkdirTemp("", "yt-")
+	if err != nil {
+		return "", fmt.Errorf("mktemp: %w", err)
+	}
+	wasErr := false
+	defer func() {
+		if wasErr {
+			_ = os.RemoveAll(tmpDir)
+		}
+	}()
+
+	outTpl := filepath.Join(tmpDir, "clip.%(ext)s")
+
+	dCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	q := x.Ternary(fullQuality, "bestvideo+bestaudio/best", `bestvideo[height<=720]+bestaudio/best[height<=720]`)
+	cmd := exec.CommandContext(
+		dCtx, "yt-dlp",
+		"-f", q,
+		"-N", "8", // number of connections
+		"--geo-bypass",
+		"--no-playlist",
+		"--force-overwrites",
+		"-q", "--no-warnings", "--no-progress",
+		"--print", "after_move:filepath",
+		"-o", outTpl,
+		rawURL,
+	)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+
+	if err := cmd.Run(); err != nil {
+		wasErr = true
+		return "", fmt.Errorf("yt-dlp failed: %v\n%s", err, strings.TrimSpace(stderr.String()))
+	}
+
+	// prefer the last non-empty stdout line that exists on disk
+	var finalPath string
+	for _, ln := range strings.Split(strings.TrimSpace(stdout.String()), "\n") {
+		s := strings.TrimSpace(ln)
+		if s != "" {
+			finalPath = s // will end up last
+		}
+	}
+	if finalPath == "" || !strings.HasPrefix(finalPath, tmpDir) {
+		// fallback: find the newest file in tmpDir matching clip.*
+		matches, _ := filepath.Glob(filepath.Join(tmpDir, "clip.*"))
+		if len(matches) > 0 {
+			sort.Slice(matches, func(i, j int) bool {
+				ai, _ := os.Stat(matches[i])
+				aj, _ := os.Stat(matches[j])
+				return ai.ModTime().After(aj.ModTime())
+			})
+			finalPath = matches[0]
+		}
+	}
+	if finalPath == "" {
+		wasErr = true
+		return "", fmt.Errorf("yt-dlp did not return a filepath; stderr:\n%s", strings.TrimSpace(stderr.String()))
+	}
+
+	xlog.Debugf(ctx, "yt-dlp downloaded file to: %s", finalPath)
+	return finalPath, nil
 }
 
 // ---- internal ----
@@ -114,90 +200,4 @@ func runCurl(ctx context.Context, rawURL, outPath string) error {
 		return fmt.Errorf("curl failed: %s", msg)
 	}
 	return nil
-}
-
-// ytDLP downloads YouTube media via yt-dlp to a temp file and returns its path.
-// no need for mutex or anything, each run gets its own temp dir
-func ytDLP(ctx context.Context, rawURL string) (string, error) {
-	if err := ensureTool("yt-dlp"); err != nil {
-		return "", err
-	}
-
-	tmpDir, err := os.MkdirTemp("", "yt-")
-	if err != nil {
-		return "", fmt.Errorf("mktemp: %w", err)
-	}
-	// Always attempt to remove the staging dir; we'll move the file out on success.
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	outTpl := filepath.Join(tmpDir, "clip.%(ext)s")
-
-	stdout := &bytes.Buffer{}
-	stderr := &bytes.Buffer{}
-	cmd := exec.CommandContext(
-		ctx, "yt-dlp",
-		"-f", `bestvideo[height<=720]+bestaudio/best[height<=720]`,
-		"-N", "8",
-		"--geo-bypass",
-		"--no-playlist",
-		"--force-overwrites",
-		"-q", "--no-warnings", "--no-progress",
-		"--print", "after_move:filepath",
-		"-o", outTpl,
-		rawURL,
-	)
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("yt-dlp failed: %v\n%s", err, strings.TrimSpace(stderr.String()))
-	}
-
-	// prefer the last non-empty stdout line that exists on disk
-	var finalPath string
-	for _, ln := range strings.Split(strings.TrimSpace(stdout.String()), "\n") {
-		s := strings.TrimSpace(ln)
-		if s != "" {
-			finalPath = s // will end up last
-		}
-	}
-	if finalPath == "" || !strings.HasPrefix(finalPath, tmpDir) {
-		// fallback: find the newest file in tmpDir matching clip.*
-		matches, _ := filepath.Glob(filepath.Join(tmpDir, "clip.*"))
-		if len(matches) > 0 {
-			sort.Slice(matches, func(i, j int) bool {
-				ai, _ := os.Stat(matches[i])
-				aj, _ := os.Stat(matches[j])
-				return ai.ModTime().After(aj.ModTime())
-			})
-			finalPath = matches[0]
-		}
-	}
-	if finalPath == "" {
-		return "", fmt.Errorf("yt-dlp did not return a filepath; stderr:\n%s", strings.TrimSpace(stderr.String()))
-	}
-
-	// Move the file out to a real temp file and return that path.
-	dstExt := filepath.Ext(finalPath)
-	dst, err := os.CreateTemp("", "clip-*"+dstExt)
-	if err != nil {
-		return "", fmt.Errorf("create temp for yt-dlp output: %w", err)
-	}
-	dstPath := dst.Name()
-	_ = dst.Close()
-	_ = os.Remove(dstPath) // make room for rename
-
-	if err := os.Rename(finalPath, dstPath); err != nil {
-		// Cross-device (unlikely for os.TempDir), fallback to copy
-		data, rErr := os.ReadFile(finalPath)
-		if rErr != nil {
-			_ = os.Remove(dstPath)
-			return "", fmt.Errorf("move yt-dlp output: %w (and failed read: %v)", err, rErr)
-		}
-		if wErr := os.WriteFile(dstPath, data, 0o600); wErr != nil {
-			_ = os.Remove(dstPath)
-			return "", fmt.Errorf("write yt-dlp output: %w", wErr)
-		}
-	}
-	return dstPath, nil
 }

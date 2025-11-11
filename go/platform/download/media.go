@@ -13,15 +13,12 @@ type Strategy int
 
 const (
 	StrategyUnknown Strategy = iota
-	StrategyYouTube
 	StrategyFFmpeg
 	StrategyDirect
 )
 
 func (s Strategy) String() string {
 	switch s {
-	case StrategyYouTube:
-		return "yt-dlp"
 	case StrategyFFmpeg:
 		return "ffmpeg"
 	case StrategyDirect:
@@ -46,15 +43,15 @@ func (p DownloadPlan) Validate() error {
 		return errors.New("plan URL is empty")
 	case p.Strategy == StrategyUnknown:
 		return errors.New("plan strategy is unknown")
-	case p.Strategy != StrategyYouTube && p.OutputExt == "":
+	case p.OutputExt == "":
 		return errors.New("plan output extension is empty")
 	default:
 		return nil
 	}
 }
 
-// Parse analyzes a media URL and returns the download plan.
-func Parse(rawURL string) (DownloadPlan, error) {
+// ParseMediaURL analyzes a media URL and returns the download plan.
+func ParseMediaURL(rawURL string) (DownloadPlan, error) {
 	if rawURL == "" {
 		return DownloadPlan{}, fmt.Errorf("invalid url: empty")
 	}
@@ -64,11 +61,6 @@ func Parse(rawURL string) (DownloadPlan, error) {
 
 	plan := DownloadPlan{
 		URL: rawURL,
-	}
-
-	if IsYouTubeURL(rawURL) {
-		plan.Strategy = StrategyYouTube
-		return plan, nil
 	}
 
 	ext, err := extractFileType(rawURL)
@@ -81,7 +73,7 @@ func Parse(rawURL string) (DownloadPlan, error) {
 	switch ext {
 	case "m3u8", "mpd":
 		plan.Strategy = StrategyFFmpeg
-		plan.OutputExt = "mp4"
+		plan.OutputExt = "mp4" // force mp4 out (for discord inline player compatibility)
 	case "mp4":
 		plan.Strategy = StrategyFFmpeg
 	default:
@@ -89,19 +81,6 @@ func Parse(rawURL string) (DownloadPlan, error) {
 	}
 
 	return plan, nil
-}
-
-// IsYouTubeURL returns true when the URL points at a YouTube resource.
-func IsYouTubeURL(rawURL string) bool {
-	return strings.HasPrefix(rawURL, "https://youtu.be/") ||
-		strings.HasPrefix(rawURL, "https://www.youtube.com/watch?v=") ||
-		IsYouTubeShortsURL(rawURL)
-}
-
-// IsYouTubeShortsURL returns true when the URL points at a YouTube Shorts resource.
-func IsYouTubeShortsURL(rawURL string) bool {
-	return strings.HasPrefix(rawURL, "https://youtube.com/shorts/") ||
-		strings.HasPrefix(rawURL, "https://www.youtube.com/shorts/")
 }
 
 var extRegex = regexp.MustCompile(`\.([a-zA-Z0-9]+)(?:[?#]|$)`)

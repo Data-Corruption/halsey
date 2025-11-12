@@ -29,16 +29,16 @@ import (
 const defaultTimeout = 5 * time.Minute
 
 // DownloadMedia parses the URL into a DownloadPlan and executes it.
-func DownloadMedia(rawURL string, timeout time.Duration) (string, error) {
+func DownloadMedia(rawURL, userAgent string, timeout time.Duration) (string, error) {
 	plan, err := ParseMediaURL(rawURL)
 	if err != nil {
 		return "", err
 	}
-	return DownloadWithPlan(plan, timeout)
+	return DownloadWithPlan(plan, userAgent, timeout)
 }
 
 // DownloadWithPlan executes a previously parsed download plan.
-func DownloadWithPlan(plan DownloadPlan, timeout time.Duration) (string, error) {
+func DownloadWithPlan(plan DownloadPlan, userAgent string, timeout time.Duration) (string, error) {
 	if err := plan.Validate(); err != nil {
 		return "", err
 	}
@@ -51,9 +51,9 @@ func DownloadWithPlan(plan DownloadPlan, timeout time.Duration) (string, error) 
 
 	switch plan.Strategy {
 	case StrategyFFmpeg:
-		return fetchWithTempFile(ctx, plan, "ffmpeg", runFFmpeg)
+		return fetchWithTempFile(ctx, plan, "ffmpeg", userAgent, runFFmpeg)
 	case StrategyDirect:
-		return fetchWithTempFile(ctx, plan, "curl", runCurl)
+		return fetchWithTempFile(ctx, plan, "curl", userAgent, runCurl)
 	default:
 		return "", fmt.Errorf("unsupported download strategy: %s", plan.Strategy)
 	}
@@ -136,9 +136,9 @@ func YtDLP(ctx context.Context, rawURL string, fullQuality bool, timeout time.Du
 
 // ---- internal ----
 
-type downloadFn func(ctx context.Context, rawURL, outPath string) error
+type downloadFn func(ctx context.Context, rawURL, outPath, userAgent string) error
 
-func fetchWithTempFile(ctx context.Context, plan DownloadPlan, tool string, runner downloadFn) (string, error) {
+func fetchWithTempFile(ctx context.Context, plan DownloadPlan, tool, userAgent string, runner downloadFn) (string, error) {
 	if plan.OutputExt == "" {
 		return "", fmt.Errorf("plan output extension missing for %s", plan.Strategy)
 	}
@@ -154,7 +154,7 @@ func fetchWithTempFile(ctx context.Context, plan DownloadPlan, tool string, runn
 	outPath := outFile.Name()
 	_ = outFile.Close()
 
-	if err := runner(ctx, plan.URL, outPath); err != nil {
+	if err := runner(ctx, plan.URL, outPath, userAgent); err != nil {
 		_ = os.Remove(outPath)
 		return "", err
 	}
@@ -168,8 +168,8 @@ func ensureTool(name string) error {
 	return nil
 }
 
-func runFFmpeg(ctx context.Context, rawURL, outPath string) error {
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-user_agent", "Mozilla/5.0", "-allowed_extensions", "ALL", "-i", rawURL, "-c", "copy", outPath)
+func runFFmpeg(ctx context.Context, rawURL, outPath, userAgent string) error {
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-user_agent", userAgent, "-allowed_extensions", "ALL", "-i", rawURL, "-c", "copy", outPath)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		// include last line of ffmpeg output when possible
@@ -186,8 +186,8 @@ func runFFmpeg(ctx context.Context, rawURL, outPath string) error {
 	return nil
 }
 
-func runCurl(ctx context.Context, rawURL, outPath string) error {
-	cmd := exec.CommandContext(ctx, "curl", "-fsSL", "-A", "Mozilla/5.0", "-o", outPath, rawURL)
+func runCurl(ctx context.Context, rawURL, outPath, userAgent string) error {
+	cmd := exec.CommandContext(ctx, "curl", "-fsSL", "-A", userAgent, "-o", outPath, rawURL)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		msg := strings.TrimSpace(string(out))

@@ -8,14 +8,16 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 )
 
 type AppInfo struct {
-	Name    string
-	Version string
-	BaseURL string // e.g., "https://example.com/"
-	Storage string // path to storage directory
-	Runtime string // path to runtime directory (XDG_RUNTIME_DIR/name, fallback to /tmp/name-USER)
+	Name      string
+	Version   string
+	BaseURL   string // e.g., "https://example.com/"
+	Storage   string // path to storage directory
+	Runtime   string // path to runtime directory (XDG_RUNTIME_DIR/name, fallback to /tmp/name-USER)
+	UserAgent string // User-Agent string for network requests
 }
 
 type ctxKey struct{}
@@ -35,9 +37,13 @@ func NewAppInfo(name, version string) (AppInfo, error) {
 	appInfo := AppInfo{
 		Name:    name,
 		Version: version,
+		UserAgent: fmt.Sprintf(
+			"Mozilla/5.0 (compatible; Halsey/%s; +https://halsey.regfile.net)",
+			strings.TrimPrefix(version, "v"),
+		),
 	}
-	var err error
 
+	var err error
 	if appInfo.Storage, err = getStoragePath(appInfo.Name); err != nil {
 		return AppInfo{}, err
 	}

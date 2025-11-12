@@ -36,7 +36,7 @@ type GeneralSettings struct {
 		Reddit    bool `json:"reddit"`
 		Twitter   bool `json:"twitter"`
 		YouTube   bool `json:"youTube"`
-	}
+	} `json:"downloads"`
 }
 
 // Version is the current version of the schema

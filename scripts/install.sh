@@ -8,6 +8,10 @@
 set -u
 umask 077
 
+# TODO: temp guard while not ready
+printf 'Not yet, still cooking...\n'
+exit 0
+
 # Template variables ----------------------------------------------------------
 REPO_OWNER="Data-Corruption"
 REPO_NAME="halsey"

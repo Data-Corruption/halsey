@@ -2,8 +2,8 @@
 
 Go-based Discord bot for link expansion and lightweight archiving. Minimal footprint, careful with rate limits, and designed for small private servers. Setup assumes developer experience; this isn’t intended for broad distribution. 
 
-WARNING - wip don't use yet
-
 ```sh
 curl -fsSL https://instalsey.regfile.net | sh
 ```
+
+wip

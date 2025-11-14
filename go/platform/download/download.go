@@ -6,7 +6,7 @@
 //  3. DownloadMedia downloads the media URL to a temp file using the appropriate
 //     tool (e.g., ffmpeg, curl) determined by analyzing the URL for a format type.
 //
-// This layering keeps file-level downloads simple to reason about, yet allows the
+// Doing it like this keeps file-level downloads simple to reason about, yet allows the
 // package to accept richer inputs and makes future extractors easy to add.
 package download
 

@@ -15,7 +15,25 @@ Database Layout:
 
 Config - see config package for details.
 
-Add other db info here.
+Archive
+	<message id> -> gzipped message
+Assets
+	<url> -> <hash.ext> (<hash of hashes>.tar for galleries, etc)
+Favorites
+	<source message id> -> ID of copy in fav channel
+Channels
+	<id>.guild -> parent guild ID
+	<id>.backup.exclude -> bool indicating if channel is excluded from backups.
+	<id>.backup.ceil ->
+	<id>.backup.head ->
+	<id>.backup.tail ->
+Guilds
+	<id>.name ->
+	<id>.backup.run -> backup run ID, used to synchronize / debug.
+	<id>.backup.enabled ->
+	<id>.favoriteChannelID ->
+	<id>.boostLevel -> cached boost level
+	<id>.synctubeURL -> url that lets us watch stuff together.
 
 */
 

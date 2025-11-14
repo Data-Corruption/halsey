@@ -1,107 +1,105 @@
 package download
 
 import (
+	"errors"
+	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 )
 
-// Domain represents the domain of the media URL.
-type Domain int
+// Strategy represents the toolchain needed to fetch the media.
+type Strategy int
 
 const (
-	DomainUnknown Domain = iota
-	DomainInstagram
-	DomainReddit
-	DomainXitter
-	DomainYouTube
-	DomainYoutubeShorts
+	StrategyUnknown Strategy = iota
+	StrategyFFmpeg
+	StrategyDirect
 )
 
-func (d Domain) String() string {
-	switch d {
-	case DomainInstagram:
-		return "instagram"
-	case DomainReddit:
-		return "reddit"
-	case DomainXitter:
-		return "xitter"
-	case DomainYouTube:
-		return "youtube"
-	case DomainYoutubeShorts:
-		return "youtube_shorts"
+func (s Strategy) String() string {
+	switch s {
+	case StrategyFFmpeg:
+		return "ffmpeg"
+	case StrategyDirect:
+		return "direct"
 	default:
 		return "unknown"
 	}
 }
 
-// ParseDomain determines the domain from the given raw URL.
-func ParseDomain(rawURL string) Domain {
+// DownloadPlan captures how to retrieve a remote media resource.
+type DownloadPlan struct {
+	URL       string
+	Ext       string
+	OutputExt string
+	Strategy  Strategy
+}
+
+// Validate ensures the plan has enough information to be executed.
+func (p DownloadPlan) Validate() error {
 	switch {
-	case hasAnyPrefix(rawURL, []string{
-		"https://www.instagram.com/",
-		"https://m.instagram.com/",
-		"https://instagram.com/",
-		"https://www.instagr.am/",
-		"https://m.instagr.am/",
-		"https://instagr.am/"}):
-		return DomainInstagram
-	case hasAnyPrefix(rawURL, []string{
-		"https://www.reddit.com/",
-		"https://reddit.com/",
-		"https://v.redd.it/",
-		"https://i.redd.it/",
-		"https://www.redd.it/",
-		"https://np.reddit.com/",
-		"https://amp.reddit.com/",
-		"https://m.reddit.com/",
-		"https://old.reddit.com/",
-		"https://new.reddit.com/"}):
-		return DomainReddit
-	case hasAnyPrefix(rawURL, []string{
-		"https://x.com/",
-		"https://www.x.com/",
-		"https://mobile.x.com/",
-		"https://twitter.com/",
-		"https://www.twitter.com/",
-		"https://mobile.twitter.com/",
-		"https://t.co/"}):
-		return DomainXitter
-	case hasAnyPrefix(rawURL, []string{
-		"https://www.youtube.com/",
-		"https://youtube.com/",
-		"https://youtu.be/"}):
-		if hasAnyPrefix(rawURL, []string{
-			"https://youtube.com/shorts/",
-			"https://www.youtube.com/shorts/"}) {
-			return DomainYoutubeShorts
-		}
-		return DomainYouTube
+	case p.URL == "":
+		return errors.New("plan URL is empty")
+	case p.Strategy == StrategyUnknown:
+		return errors.New("plan strategy is unknown")
+	case p.OutputExt == "":
+		return errors.New("plan output extension is empty")
 	default:
-		return DomainUnknown
+		return nil
 	}
 }
 
-// IsSingleValidURL checks if the given string contains a single valid URL.
-func IsSingleValidURL(s string) bool {
-	// fast path
-	if !(strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")) {
-		return false
+// ParseMediaURL analyzes a media URL and returns the download plan.
+func ParseMediaURL(rawURL string) (DownloadPlan, error) {
+	if rawURL == "" {
+		return DownloadPlan{}, fmt.Errorf("invalid url: empty")
 	}
-	// fuzzy check
-	count := strings.Count(s, "http://") + strings.Count(s, "https://")
-	if count != 1 || strings.ContainsAny(s, " \t\n") {
-		return false
+	if _, err := url.ParseRequestURI(rawURL); err != nil {
+		return DownloadPlan{}, fmt.Errorf("invalid url: %w", err)
 	}
-	// parse URL
-	u, err := url.ParseRequestURI(s)
-	return err == nil && u.Scheme != "" && u.Host != ""
+
+	plan := DownloadPlan{
+		URL: rawURL,
+	}
+
+	ext, err := extractFileType(rawURL)
+	if err != nil {
+		return DownloadPlan{}, err
+	}
+	plan.Ext = ext
+	plan.OutputExt = ext
+
+	switch ext {
+	case "m3u8", "mpd":
+		plan.Strategy = StrategyFFmpeg
+		plan.OutputExt = "mp4" // force mp4 out (for discord inline player compatibility)
+	case "mp4":
+		plan.Strategy = StrategyFFmpeg
+	default:
+		plan.Strategy = StrategyDirect
+	}
+
+	return plan, nil
 }
 
-func hasAnyPrefix(s string, prefixes []string) bool {
-	for _, p := range prefixes {
-		if strings.HasPrefix(s, p) {
-			return true
-		}
+var extRegex = regexp.MustCompile(`\.([a-zA-Z0-9]+)(?:[?#]|$)`)
+
+// extractFileType returns the URL-indicated extension or an error if none is found.
+// It first checks the "format" query parameter, then the path suffix.
+func extractFileType(rawURL string) (string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("parse url: %w", err)
 	}
-	return false
+
+	if format := u.Query().Get("format"); format != "" {
+		return format, nil
+	}
+
+	m := extRegex.FindStringSubmatch(u.Path)
+	if len(m) < 2 {
+		return "", fmt.Errorf("no file extension found in url: %s", rawURL)
+	}
+	return strings.ToLower(m[1]), nil
 }

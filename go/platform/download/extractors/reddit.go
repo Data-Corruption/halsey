@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sprout/go/platform/xhtml"
+	"sprout/go/platform/x/xhtml"
 	"strings"
 	"time"
 

@@ -8,6 +8,15 @@
 set -u
 umask 077
 
+cat << 'EOF'
+ __  __     ______     __         ______     ______     __  __    
+/\ \_\ \   /\  __ \   /\ \       /\  ___\   /\  ___\   /\ \_\ \   
+\ \  __ \  \ \  __ \  \ \ \____  \ \___  \  \ \  __\   \ \____ \  
+ \ \_\ \_\  \ \_\ \_\  \ \_____\  \/\_____\  \ \_____\  \/\_____\ 
+  \/_/\/_/   \/_/\/_/   \/_____/   \/_____/   \/_____/   \/_____/ 
+                                                                  
+EOF
+
 # TODO: temp guard while not ready
 printf 'Not yet, still cooking...\n'
 exit 0
@@ -154,11 +163,6 @@ if [ "$SERVICE" = "true" ]; then
 fi
 
 # Create directories ---------------------------------------------------------
-
-# Optionally print a banner here
-# cat << 'EOF'
-# hi
-# EOF
 
 # print install header
 INSTALL_SYMBOL=''

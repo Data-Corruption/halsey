@@ -11,8 +11,10 @@ import (
 	"sprout/go/app/commands"
 	"sprout/go/platform/database"
 	"sprout/go/platform/database/config"
+	"sprout/go/platform/download"
 	"sprout/go/platform/update"
 	"sprout/go/platform/x"
+	"sprout/go/platform/x/workqueue"
 
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/urfave/cli/v3"
@@ -178,7 +180,14 @@ func startup(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 		}
 	}
 
-	// init other components
+	// init Queues
+	download.RedditQueue = workqueue.New(3*time.Second, 2*time.Second)
+	download.YoutubeQueue = workqueue.New(3*time.Second, 2*time.Second)
+	cleanUpFuncs = append(cleanUpFuncs, func() error {
+		download.RedditQueue.Close()
+		download.YoutubeQueue.Close()
+		return nil
+	})
 
 	return ctx, nil
 }

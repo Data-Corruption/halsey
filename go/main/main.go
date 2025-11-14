@@ -14,6 +14,7 @@ import (
 	"sprout/go/platform/download"
 	"sprout/go/platform/update"
 	"sprout/go/platform/x"
+	"sprout/go/platform/x/compress"
 	"sprout/go/platform/x/workqueue"
 
 	"github.com/Data-Corruption/stdx/xlog"
@@ -71,6 +72,7 @@ func main() {
 		Commands: []*cli.Command{
 			commands.Update,
 			commands.Service,
+			commands.Setup,
 		},
 	}
 
@@ -180,6 +182,9 @@ func startup(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 		}
 	}
 
+	// init Hardware Acceleration
+	compress.InitHWAccel(ctx)
+
 	// init Queues
 	download.RedditQueue = workqueue.New(3*time.Second, 2*time.Second)
 	download.YoutubeQueue = workqueue.New(3*time.Second, 2*time.Second)
@@ -204,7 +209,7 @@ func cleanup() {
 		// sleep a bit to allow cleanup to sync to disk
 		time.Sleep(1 * time.Second)
 		if err := update.ExitFunc(); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to update: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Exit failure: %v\n", err)
 		}
 	}
 }

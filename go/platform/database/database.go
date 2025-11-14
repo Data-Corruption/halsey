@@ -38,7 +38,12 @@ Guilds
 */
 
 const (
-	ConfigDBIName = "config"
+	ConfigDBIName    = "config"
+	ArchiveDBIName   = "archive"
+	AssetsDBIName    = "assets"
+	FavoritesDBIName = "favorites"
+	ChannelsDBIName  = "channels"
+	GuildsDBIName    = "guilds"
 	// Add more DBI names as needed, e.g., UserDBIName, SessionDBIName, etc. Also update the slice below to include them.
 	// WARNING: If you add more DBIs you'll need to clean and reinitialize the database from scratch pretty sure.
 )
@@ -65,7 +70,8 @@ func New(ctx context.Context) (*wrap.DB, error) {
 		return nil, errors.New("nexus data path not set before database initialization")
 	}
 	db, _, err := wrap.New(filepath.Join(appInfo.Storage, "db"),
-		[]string{ConfigDBIName}, // If you add more DBIs, update this slice as well.
+		// If you add more DBIs, update this slice as well.
+		[]string{ConfigDBIName, ArchiveDBIName, AssetsDBIName, FavoritesDBIName, ChannelsDBIName, GuildsDBIName},
 	)
 	if err != nil && db != nil {
 		db.Close()

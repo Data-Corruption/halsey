@@ -19,7 +19,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"sprout/go/platform/x"
 	"strings"
 	"time"
 
@@ -61,7 +60,7 @@ func DownloadWithPlan(plan DownloadPlan, userAgent string, timeout time.Duration
 
 // YtDLP downloads YouTube media via yt-dlp to a temp file in its own directory and returns its path.
 // The caller is responsible for cleaning up the file/parent directory when done.
-func YtDLP(ctx context.Context, rawURL string, fullQuality bool, timeout time.Duration) (string, error) {
+func YtDLP(ctx context.Context, rawURL string, timeout time.Duration) (string, error) {
 	if err := ensureTool("yt-dlp"); err != nil {
 		return "", err
 	}
@@ -84,10 +83,9 @@ func YtDLP(ctx context.Context, rawURL string, fullQuality bool, timeout time.Du
 
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
-	q := x.Ternary(fullQuality, "bestvideo+bestaudio/best", `bestvideo[height<=720]+bestaudio/best[height<=720]`)
 	cmd := exec.CommandContext(
 		dCtx, "yt-dlp",
-		"-f", q,
+		"-f", "bestvideo+bestaudio/best",
 		"-N", "8", // number of connections
 		"--geo-bypass",
 		"--no-playlist",

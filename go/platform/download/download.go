@@ -19,6 +19,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,8 @@ import (
 )
 
 const defaultTimeout = 5 * time.Minute
+
+var ErrTooManyRequests = errors.New("too many requests, try again later")
 
 // DownloadMedia parses the URL into a DownloadPlan and executes it.
 func DownloadMedia(rawURL, userAgent string, timeout time.Duration) (string, error) {
@@ -132,6 +135,74 @@ func YtDLP(ctx context.Context, rawURL string, timeout time.Duration) (string, e
 	return finalPath, nil
 }
 
+// YtDLPLength probes the length of a YouTube video in seconds using yt-dlp.
+func YtDLPLength(ctx context.Context, rawURL string, timeout time.Duration) (int, error) {
+	if err := ensureTool("yt-dlp"); err != nil {
+		return 0, err
+	}
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
+
+	pCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	cmd := exec.CommandContext(
+		pCtx, "yt-dlp",
+		"-q", "--no-warnings", "--no-progress",
+		"--print", "duration",
+		rawURL,
+	)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+
+	if err := cmd.Run(); err != nil {
+		// if context timed out, surface that explicitly.
+		if errors.Is(pCtx.Err(), context.DeadlineExceeded) {
+			return 0, fmt.Errorf("yt-dlp duration probe timed out: %s", strings.TrimSpace(stderr.String()))
+		}
+		return 0, fmt.Errorf("yt-dlp duration probe failed: %v\n%s", err, strings.TrimSpace(stderr.String()))
+	}
+
+	out := strings.TrimSpace(stdout.String())
+	if out == "" {
+		return 0, fmt.Errorf("yt-dlp duration probe returned empty output; stderr:\n%s", strings.TrimSpace(stderr.String()))
+	}
+
+	// use the last non-empty line, in case yt-dlp ever prints extra stuff.
+	var last string
+	for _, ln := range strings.Split(out, "\n") {
+		s := strings.TrimSpace(ln)
+		if s != "" {
+			last = s
+		}
+	}
+	if last == "" {
+		return 0, fmt.Errorf("yt-dlp duration probe produced no usable duration; raw:\n%s", out)
+	}
+
+	// yt-dlp usually prints an integer number of seconds, but be tolerant of floats.
+	secFloat, err := strconv.ParseFloat(last, 64)
+	if err != nil {
+		// yt-dlp can also print "NA" for live/no-duration cases.
+		lower := strings.ToLower(last)
+		if lower == "na" || lower == "none" {
+			return 0, fmt.Errorf("yt-dlp duration unavailable (live or missing); raw:%q", last)
+		}
+		return 0, fmt.Errorf("yt-dlp duration parse failed for %q: %w", last, err)
+	}
+
+	if secFloat < 0 {
+		return 0, fmt.Errorf("yt-dlp returned negative duration %f", secFloat)
+	}
+
+	// truncate toward zero; yt-dlp should give exact seconds anyway.
+	return int(secFloat), nil
+}
+
 // ---- internal ----
 
 type downloadFn func(ctx context.Context, rawURL, outPath, userAgent string) error
@@ -167,7 +238,16 @@ func ensureTool(name string) error {
 }
 
 func runFFmpeg(ctx context.Context, rawURL, outPath, userAgent string) error {
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-user_agent", userAgent, "-allowed_extensions", "ALL", "-i", rawURL, "-c", "copy", outPath)
+	cmd := exec.CommandContext(
+		ctx,
+		"ffmpeg",
+		"-y",
+		"-user_agent", userAgent,
+		"-allowed_extensions", "ALL",
+		"-i", rawURL,
+		"-c", "copy",
+		outPath,
+	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		// include last line of ffmpeg output when possible
@@ -179,23 +259,72 @@ func runFFmpeg(ctx context.Context, rawURL, outPath, userAgent string) error {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return fmt.Errorf("ffmpeg timed out: %s", msg)
 		}
+		// Map HTTP 429-ish errors to a stable package-level sentinel.
+		if isTooManyRequestsMessage(msg) {
+			return ErrTooManyRequests
+		}
 		return fmt.Errorf("ffmpeg failed: %s", msg)
 	}
 	return nil
 }
 
 func runCurl(ctx context.Context, rawURL, outPath, userAgent string) error {
-	cmd := exec.CommandContext(ctx, "curl", "-fsSL", "-A", userAgent, "-o", outPath, rawURL)
+	cmd := exec.CommandContext(
+		ctx,
+		"curl",
+		"-fsSL",
+		"-A", userAgent,
+		"-w", "%{http_code}",
+		"-o", outPath,
+		rawURL,
+	)
 	out, err := cmd.CombinedOutput()
+	msg := strings.TrimSpace(string(out))
 	if err != nil {
-		msg := strings.TrimSpace(string(out))
 		if msg == "" {
 			msg = err.Error()
 		}
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return fmt.Errorf("curl timed out: %s", msg)
 		}
+		// Check the HTTP status code from -w "%{http_code}".
+		if status := parseCurlStatusCode(msg); status == 429 {
+			return ErrTooManyRequests
+		}
+		// Fallback to message sniffing in case status parse fails but server
+		// text still mentions rate limiting.
+		if isTooManyRequestsMessage(msg) {
+			return ErrTooManyRequests
+		}
 		return fmt.Errorf("curl failed: %s", msg)
 	}
 	return nil
+}
+
+// isTooManyRequestsMessage does a best-effort sniff for HTTP 429 / rate limit messages.
+func isTooManyRequestsMessage(msg string) bool {
+	lower := strings.ToLower(msg)
+	if strings.Contains(lower, "too many requests") {
+		return true
+	}
+	// Fallback: look for a bare 429 in the text.
+	if strings.Contains(msg, "429") {
+		return true
+	}
+	return false
+}
+
+// parseCurlStatusCode tries to pull an HTTP status code out of curl's -w "%{http_code}" output.
+func parseCurlStatusCode(msg string) int {
+	fields := strings.Fields(msg)
+	for i := len(fields) - 1; i >= 0; i-- {
+		if len(fields[i]) != 3 {
+			continue
+		}
+		n, err := strconv.Atoi(fields[i])
+		if err == nil {
+			return n
+		}
+	}
+	return 0
 }

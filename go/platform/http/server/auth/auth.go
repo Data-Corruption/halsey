@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	TokenParam = "token"
+	TokenParam = "a"
 	DefaultTTL = 10 * time.Minute
 	// use case is very small server / user count, is tuned accordingly
 	DefaultRateLimit = 1 * time.Second

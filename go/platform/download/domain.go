@@ -2,7 +2,6 @@ package download
 
 import (
 	"net/url"
-	"sprout/go/platform/x/workqueue"
 	"strings"
 )
 
@@ -16,12 +15,6 @@ const (
 	DomainXitter
 	DomainYouTube
 	DomainYoutubeShorts
-)
-
-// Queues for different domains.
-var (
-	RedditQueue  *workqueue.Queue = nil
-	YoutubeQueue *workqueue.Queue = nil
 )
 
 func (d Domain) String() string {

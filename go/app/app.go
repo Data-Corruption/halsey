@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"sprout/go/platform/database"
 	"sprout/go/platform/database/config"
-	"sprout/go/platform/download"
+	"sprout/go/platform/http/server/auth"
 	"sprout/go/platform/x"
 	"sprout/go/platform/x/compress"
 	"sprout/go/platform/x/workqueue"
@@ -33,9 +33,13 @@ type App struct {
 	DB      *wrap.DB
 	Log     *xlog.Logger
 	Net     struct {
-		Server    *xhttp.Server
-		BaseURL   string // e.g., "https://example.com/"
-		UserAgent string // User-Agent string for network requests
+		Server       *xhttp.Server
+		BaseURL      string // e.g., "https://example.com/"
+		UserAgent    string // User-Agent string for network requests
+		RedditQueue  *workqueue.Queue
+		YoutubeQueue *workqueue.Queue
+		SettingsAuth *auth.Manager
+		DownloadAuth *auth.Manager
 	}
 	Paths struct {
 		Storage string // (e.g., ~/.appName)
@@ -131,12 +135,16 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command, name, version string) 
 	// init Hardware Acceleration
 	compress.InitHWAccel(ctx)
 
+	// init auth managers
+	a.Net.SettingsAuth = auth.New(nil, nil)
+	a.Net.DownloadAuth = auth.New(nil, nil)
+
 	// init Queues
-	download.RedditQueue = workqueue.New(3*time.Second, 2*time.Second)
-	download.YoutubeQueue = workqueue.New(3*time.Second, 2*time.Second)
+	a.Net.RedditQueue = workqueue.New(3*time.Second, 2*time.Second)
+	a.Net.YoutubeQueue = workqueue.New(3*time.Second, 2*time.Second)
 	a.AddCleanup(func() error {
-		download.RedditQueue.Close()
-		download.YoutubeQueue.Close()
+		a.Net.RedditQueue.Close()
+		a.Net.YoutubeQueue.Close()
 		return nil
 	})
 

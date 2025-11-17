@@ -43,7 +43,9 @@ type App struct {
 	}
 	Cleanup     []func() error
 	PostCleanup func() error
-	PostSet     sync.Once
+	PostSetOnce sync.Once
+	CloseOnce   sync.Once
+	Context     context.Context
 }
 
 func (a *App) Init(ctx context.Context, cmd *cli.Command, name, version string) (context.Context, error) {
@@ -121,7 +123,10 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command, name, version string) 
 		}
 	}
 
-	// --
+	// daily update check / notification
+	if err := a.Notify(); err != nil {
+		a.Log.Errorf("Update notification failed: %v", err)
+	}
 
 	// init Hardware Acceleration
 	compress.InitHWAccel(ctx)
@@ -143,8 +148,26 @@ func (a *App) AddCleanup(f func() error) {
 }
 
 func (a *App) SetPostCleanup(f func() error) {
-	a.PostSet.Do(func() {
+	a.PostSetOnce.Do(func() {
 		a.PostCleanup = f
+	})
+}
+
+func (a *App) Close() {
+	a.CloseOnce.Do(func() {
+		// call cleanup funcs in reverse order
+		for i := len(a.Cleanup) - 1; i >= 0; i-- {
+			if err := a.Cleanup[i](); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to clean up: %v\n", err)
+			}
+		}
+		// call post cleanup func if set
+		if a.PostCleanup != nil {
+			time.Sleep(1 * time.Second) // just to be safe
+			if err := a.PostCleanup(); err != nil {
+				fmt.Fprintf(os.Stderr, "Post cleanup failure: %v\n", err)
+			}
+		}
 	})
 }
 

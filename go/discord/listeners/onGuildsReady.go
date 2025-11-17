@@ -96,6 +96,7 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady) {
 		a.Log.Info("Registering commands...")
 		registerCmds(a)
 	}
+	a.Log.Debugf("Commands: %v", commands.Registry)
 
 	// update the /update interaction if exists
 	if rCtx.IToken != "" && rCtx.MessageID != 0 {
@@ -116,7 +117,7 @@ func registerCmds(a *app.App) {
 	// get command creation data
 	var globalCommands = []discord.ApplicationCommandCreate{}
 	var guildCommands = []discord.ApplicationCommandCreate{}
-	for _, command := range commands.List {
+	for _, command := range commands.Registry {
 		if command.IsGlobal {
 			globalCommands = append(globalCommands, command.Data)
 		} else {

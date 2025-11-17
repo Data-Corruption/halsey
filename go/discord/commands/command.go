@@ -16,4 +16,18 @@ type BotCommand struct {
 	Handler      func(a *app.App, event *events.ApplicationCommandInteractionCreate) error
 }
 
-var List map[string]BotCommand = make(map[string]BotCommand)
+var Registry []BotCommand
+
+func Get(name string) (BotCommand, bool) {
+	for _, cmd := range Registry {
+		if cmd.Data.CommandName() == name {
+			return cmd, true
+		}
+	}
+	return BotCommand{}, false
+}
+
+func register(cmd BotCommand) BotCommand {
+	Registry = append(Registry, cmd)
+	return cmd
+}

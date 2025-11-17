@@ -26,10 +26,43 @@ const (
 
 const UpdateTimeout = 10 * time.Minute // max time for update process
 
+// Notify runs on app start to notify user of available updates if enabled in config.
+// It checks for updates once a day.
+func (a *App) Notify() error {
+	// check if update notifications are enabled
+	updateNotify, err := config.Get[bool](a.Config, "updateNotify")
+	if err != nil {
+		return fmt.Errorf("failed to get updateNotify from config: %w", err)
+	}
+	if updateNotify {
+		// get last update check time from config
+		t, err := config.Get[time.Time](a.Config, "lastUpdateCheck")
+		if err != nil {
+			return fmt.Errorf("failed to get lastUpdateCheck from config: %w", err)
+		}
+		// once a day, very lightweight check, trying to be polite to github
+		if time.Since(t) > 24*time.Hour {
+			a.Log.Debug("Checking for updates...")
+			// update check time in config
+			if err := config.Set(a.Config, "lastUpdateCheck", time.Now()); err != nil {
+				return fmt.Errorf("failed to set lastUpdateCheck in config: %w", err)
+			}
+			updateAvailable, err := a.UpdateCheck()
+			if err != nil {
+				a.Log.Errorf("Update check failed: %v", err) // just log since might not be online
+			}
+			if updateAvailable {
+				fmt.Println("Update available! Run 'sprout update' to update to the latest version.")
+			}
+		}
+	}
+	return nil
+}
+
 // Check checks if there is a newer version of the application available and updates the config accordingly.
 // It returns true if an update is available, false otherwise.
 // When running a dev build (e.g. with `vX.X.X`), it returns false without checking.
-func (a *App) UpdateCheck(ctx context.Context) (bool, error) {
+func (a *App) UpdateCheck() (bool, error) {
 
 	if a.Version == "" {
 		return false, fmt.Errorf("failed to get appVersion from context")

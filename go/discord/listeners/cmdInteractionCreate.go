@@ -14,8 +14,8 @@ func OnCommandInteraction(a *app.App, event *events.ApplicationCommandInteractio
 	go func() {
 		// get command
 		var cmdName string = event.Data.CommandName()
-		a.Log.Debugf("Command interaction received: %s", cmdName)
-		command, ok := commands.List[cmdName]
+		a.Log.Infof("Command interaction received: %s", cmdName)
+		command, ok := commands.Get(cmdName)
 		if !ok {
 			a.Log.Warnf("Unknown command: %s", cmdName)
 			return

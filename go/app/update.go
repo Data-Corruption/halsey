@@ -1,19 +1,17 @@
 //go:build linux
 
-package update
+package app
 
 import (
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
-	"sprout/go/app"
 	"sprout/go/platform/database/config"
 	"sprout/go/platform/git"
 	"sync"
 	"time"
 
-	"github.com/Data-Corruption/stdx/xlog"
 	"golang.org/x/mod/semver"
 )
 
@@ -28,24 +26,15 @@ const (
 
 const UpdateTimeout = 10 * time.Minute // max time for update process
 
-var (
-	ExitFunc func() error = nil
-	once     sync.Once
-)
-
 // Check checks if there is a newer version of the application available and updates the config accordingly.
 // It returns true if an update is available, false otherwise.
 // When running a dev build (e.g. with `vX.X.X`), it returns false without checking.
-func Check(ctx context.Context) (bool, error) {
-	appInfo, ok := app.FromContext(ctx)
-	if !ok {
-		return false, fmt.Errorf("app info not found in context")
-	}
+func (a *App) UpdateCheck(ctx context.Context) (bool, error) {
 
-	if appInfo.Version == "" {
+	if a.Version == "" {
 		return false, fmt.Errorf("failed to get appVersion from context")
 	}
-	if appInfo.Version == "vX.X.X" {
+	if a.Version == "vX.X.X" {
 		return false, nil // No version set, no update check needed
 	}
 
@@ -57,29 +46,30 @@ func Check(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	updateAvailable := semver.Compare(latest, appInfo.Version) > 0
-	xlog.Debugf(ctx, "Latest version: %s, Current version: %s, Update available: %t", latest, appInfo.Version, updateAvailable)
+	updateAvailable := semver.Compare(latest, a.Version) > 0
+	a.Log.Debugf("Latest version: %s, Current version: %s, Update available: %t", latest, a.Version, updateAvailable)
 
 	// update config
-	if err := config.Set(ctx, "updateAvailable", updateAvailable); err != nil {
+	if err := config.Set(a.Config, "updateAvailable", updateAvailable); err != nil {
 		return false, err
 	}
 
 	return updateAvailable, nil
 }
 
+var once = new(sync.Once)
+
 // Update checks for available updates and prepares the update to be run on exit.
 // Exit after calling this function. Calling more than once has no effect.
-func Update(ctx context.Context, detached bool) error {
+func (a *App) Update(ctx context.Context, detached bool) error {
 	var returnErr error = nil
 
 	once.Do(func() {
-		appInfo, ok := app.FromContext(ctx)
-		if !ok {
-			returnErr = fmt.Errorf("app info not found in context")
+		if a.Version == "" {
+			returnErr = fmt.Errorf("failed to get appVersion")
 			return
 		}
-		if appInfo.Version == "vX.X.X" {
+		if a.Version == "vX.X.X" {
 			fmt.Println("Dev build detected, skipping update.")
 			return
 		}
@@ -93,7 +83,7 @@ func Update(ctx context.Context, detached bool) error {
 			return
 		}
 
-		updateAvailable := semver.Compare(latest, appInfo.Version) > 0
+		updateAvailable := semver.Compare(latest, a.Version) > 0
 		if !updateAvailable {
 			fmt.Println("No updates available.")
 			return
@@ -102,16 +92,17 @@ func Update(ctx context.Context, detached bool) error {
 
 		// update config. Treat updates as lazy and not super critical. Fine to set here and
 		// have the update fail and user go a day without it. Just a notification after all.
-		if err := config.Set(ctx, "updateAvailable", false); err != nil {
+		if err := config.Set(a.Config, "updateAvailable", false); err != nil {
 			returnErr = fmt.Errorf("failed to set updateAvailable in config: %w", err)
 			return
 		}
 
 		// prepare update command
+		name := a.Name
 		pipeline := fmt.Sprintf("curl -sSfL %s | sh", InstallScriptURL)
-		xlog.Debugf(ctx, "Prepared update, detached: %t, command: %s", detached, pipeline)
+		a.Log.Debugf("Prepared update, detached: %t, command: %s", detached, pipeline)
 
-		ExitFunc = func() error {
+		a.SetPostCleanup(func() error {
 			var cmd *exec.Cmd
 
 			if detached {
@@ -122,9 +113,9 @@ func Update(ctx context.Context, detached bool) error {
 				launchCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 				defer cancel()
 
-				unitName := fmt.Sprintf("%s-update-%s", appInfo.Name, time.Now().Format("20060102-150405"))
+				unitName := fmt.Sprintf("%s-update-%s", name, time.Now().Format("20060102-150405"))
 				runtime := fmt.Sprintf("RuntimeMaxSec=%ds", int(UpdateTimeout.Seconds()))
-				syslogIdent := fmt.Sprintf("SyslogIdentifier=%s-update", appInfo.Name)
+				syslogIdent := fmt.Sprintf("SyslogIdentifier=%s-update", name)
 
 				cmd = exec.CommandContext(
 					launchCtx,
@@ -151,7 +142,7 @@ func Update(ctx context.Context, detached bool) error {
 			}
 
 			return cmd.Run()
-		}
+		})
 	})
 
 	return returnErr

@@ -19,10 +19,11 @@ type Example struct {
 }
 */
 
-type UpdateFollowup struct {
-	InteractionID string       `json:"interactionID"`
-	MessageID     snowflake.ID `json:"messageID"`
-	RegisterCmds  bool         `json:"registerCmds"`
+type RestartContext struct {
+	RegisterCmds bool `json:"registerCmds"`
+	// empty||0 = no followup message
+	IToken    string       `json:"interactionToken"`
+	MessageID snowflake.ID `json:"messageID"`
 }
 
 type GeneralSettings struct {
@@ -58,7 +59,7 @@ var SchemaRecord = map[string]schema{
 		"updateNotify":    &value[bool]{true},
 		"lastUpdateCheck": &value[time.Time]{time.Now()},
 		"updateAvailable": &value[bool]{false},
-		"updateFollowup":  &value[UpdateFollowup]{UpdateFollowup{}},
+		"restartContext":  &value[RestartContext]{RestartContext{}},
 		"generalSettings": &value[GeneralSettings]{GeneralSettings{}},
 	},
 	/*

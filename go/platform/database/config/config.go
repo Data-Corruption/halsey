@@ -24,11 +24,9 @@
 package config
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"sprout/go/platform/database"
-	"sprout/go/platform/database/helpers"
 
 	"github.com/Data-Corruption/lmdb-go/lmdb"
 	"github.com/Data-Corruption/lmdb-go/wrap"
@@ -71,19 +69,6 @@ func (v *value[T]) SetAny(key string, db *wrap.DB, val any) error {
 	return db.Write(database.ConfigDBIName, []byte(key), data) // update wrapper pkg to allow direct dbi use
 }
 
-type ctxKey struct{}
-
-func IntoContext(ctx context.Context, config *Config) context.Context {
-	return context.WithValue(ctx, ctxKey{}, config)
-}
-
-func FromContext(ctx context.Context) *Config {
-	if config, ok := ctx.Value(ctxKey{}).(*Config); ok {
-		return config
-	}
-	return nil
-}
-
 type Config struct {
 	Version    string
 	Schemas    map[string]schema
@@ -106,13 +91,9 @@ func New(version string, schemas map[string]schema, migrations map[string]Migrat
 	}, nil
 }
 
-func Init(ctx context.Context) (context.Context, error) {
-	if FromContext(ctx) != nil {
-		return ctx, fmt.Errorf("config already initialized in context")
-	}
-	db := database.FromContext(ctx)
+func Init(db *wrap.DB) (*Config, error) {
 	if db == nil {
-		return nil, fmt.Errorf("database not initialized in context")
+		return nil, fmt.Errorf("database not initialized")
 	}
 	config, err := New(Version, SchemaRecord, Migrations, db)
 	if err != nil {
@@ -121,16 +102,12 @@ func Init(ctx context.Context) (context.Context, error) {
 	if err := config.Migrate(); err != nil {
 		return nil, fmt.Errorf("failed to migrate config: %w", err)
 	}
-	return IntoContext(ctx, config), nil
+	return config, nil
 }
 
-func Get[T any](ctx context.Context, key string) (T, error) {
-	cfg := FromContext(ctx)
-	if cfg == nil {
-		return *new(T), fmt.Errorf("config not found in context")
-	}
+func Get[T any](c *Config, key string) (T, error) {
 	// Ensure the schema exists for the current version.
-	cfgValue, exists := cfg.Schemas[cfg.Version][key]
+	cfgValue, exists := c.Schemas[c.Version][key]
 	if !exists {
 		return *new(T), fmt.Errorf("key %s not found in config", key)
 	}
@@ -140,7 +117,7 @@ func Get[T any](ctx context.Context, key string) (T, error) {
 		return *new(T), fmt.Errorf("type mismatch for key %s", key)
 	}
 	// Use the GetAny method to retrieve the value.
-	rawValue, err := typedValue.GetAny(key, cfg.DB)
+	rawValue, err := typedValue.GetAny(key, c.DB)
 	if err != nil {
 		return *new(T), fmt.Errorf("failed to get config key '%s': %w", key, err)
 	}
@@ -152,15 +129,11 @@ func Get[T any](ctx context.Context, key string) (T, error) {
 	return result, nil
 }
 
-func Set[T any](ctx context.Context, key string, val T) error {
-	cfg := FromContext(ctx)
-	if cfg == nil {
-		return fmt.Errorf("config not found in context")
-	}
+func Set[T any](c *Config, key string, val T) error {
 	// Ensure the schema exists for the current version.
-	schemaForVersion, ok := cfg.Schemas[cfg.Version]
+	schemaForVersion, ok := c.Schemas[c.Version]
 	if !ok {
-		return fmt.Errorf("schema for version %s not found", cfg.Version)
+		return fmt.Errorf("schema for version %s not found", c.Version)
 	}
 	// Retrieve the schema definition for the key.
 	schemaVal, exists := schemaForVersion[key]
@@ -173,7 +146,7 @@ func Set[T any](ctx context.Context, key string, val T) error {
 		return fmt.Errorf("type mismatch for key %s", key)
 	}
 	// Use the SetAny method to set the value.
-	if err := typedValue.SetAny(key, cfg.DB, val); err != nil {
+	if err := typedValue.SetAny(key, c.DB, val); err != nil {
 		return fmt.Errorf("failed to set config key '%s': %w", key, err)
 	}
 	return nil
@@ -183,14 +156,14 @@ func Set[T any](ctx context.Context, key string, val T) error {
 func (cfg *Config) Migrate() error {
 	return cfg.DB.Update(func(txn *lmdb.Txn) error {
 		var discVersion string
-		if err := helpers.GetAndUnmarshal(txn, cfg.DBI, []byte("version"), &discVersion); err != nil {
+		if err := database.GetAndUnmarshal(txn, cfg.DBI, []byte("version"), &discVersion); err != nil {
 			if !lmdb.IsNotFound(err) {
 				return fmt.Errorf("failed to get config version: %w", err)
 			}
 			// no version found, initialize config
 			for key, value := range cfg.Schemas[cfg.Version] {
 				defaultValue := value.DefaultValue()
-				if err := helpers.MarshalAndPut(txn, cfg.DBI, []byte(key), defaultValue); err != nil {
+				if err := database.MarshalAndPut(txn, cfg.DBI, []byte(key), defaultValue); err != nil {
 					return fmt.Errorf("failed to write initial value for key '%s': %w", key, err)
 				}
 			}
@@ -210,7 +183,7 @@ func (cfg *Config) Migrate() error {
 			if err := migrationFunc(txn, cfg.DBI, cfg.Schemas); err != nil {
 				return fmt.Errorf("migration failed: %w", err)
 			}
-			if err := helpers.MarshalAndPut(txn, cfg.DBI, []byte("version"), cfg.Version); err != nil {
+			if err := database.MarshalAndPut(txn, cfg.DBI, []byte("version"), cfg.Version); err != nil {
 				return fmt.Errorf("failed to write new version '%s': %w", cfg.Version, err)
 			}
 			fmt.Printf("config migration successful: %s\n", migratePath)

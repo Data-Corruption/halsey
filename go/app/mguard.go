@@ -1,4 +1,4 @@
-package update
+package app
 
 import (
 	"fmt"
@@ -25,18 +25,17 @@ const (
 // directory and sending SIGTERM. Except the service instance, which is stopped via systemctl. It then
 // attempts to acquire an exclusive lock on the lock file with a timeout. If successful, it proceeds
 // with the migration, releases the lock, and restarts the service, etc.
-func Mguard(runDir string) (cleanup func() error, err error) {
+func (a *App) Mguard() error {
 	// ensure dirs exists
-	err = os.MkdirAll(filepath.Join(runDir, InstancesDir), 0o755)
-	if err != nil {
-		return nil, err
+	if err := os.MkdirAll(filepath.Join(a.Paths.Runtime, InstancesDir), 0o755); err != nil {
+		return err
 	}
 
 	// create/open lock file
-	lockPath := filepath.Join(runDir, LockFileName)
+	lockPath := filepath.Join(a.Paths.Runtime, LockFileName)
 	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// acquire shared lock with timeout
@@ -48,25 +47,26 @@ func Mguard(runDir string) (cleanup func() error, err error) {
 	case err := <-done:
 		if err != nil {
 			_ = f.Close()
-			return nil, err
+			return err
 		}
 	case <-time.After(LockAcquireTimeout):
 		_ = f.Close()
-		return nil, fmt.Errorf("timeout acquiring shared lock after %v", LockAcquireTimeout)
+		return fmt.Errorf("timeout acquiring shared lock after %v", LockAcquireTimeout)
 	}
 
 	// write PID file for installer to signal shutdown
-	pidPath := filepath.Join(runDir, InstancesDir, strconv.Itoa(os.Getpid()))
+	pidPath := filepath.Join(a.Paths.Runtime, InstancesDir, strconv.Itoa(os.Getpid()))
 	pidFile, err := os.OpenFile(pidPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		_ = f.Close()
-		return nil, err
+		return err
 	}
 	_ = pidFile.Close() // file just needs to exist
 
-	cleanup = func() error {
+	a.AddCleanup(func() error {
 		_ = os.Remove(pidPath)
 		return f.Close() // release shared lock
-	}
-	return cleanup, nil
+	})
+
+	return nil
 }

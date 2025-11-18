@@ -26,6 +26,11 @@ func main() {
 	app := &app.App{}
 	defer app.Close()
 
+	var subCommands []*cli.Command
+	for _, regFunc := range commands.Registry {
+		subCommands = append(subCommands, regFunc(app))
+	}
+
 	rootCommand := &cli.Command{
 		Name:    name,
 		Version: version,
@@ -58,11 +63,7 @@ func main() {
 			fmt.Printf("Use '%s help' to see available commands.\n", name)
 			return nil
 		},
-		Commands: []*cli.Command{
-			commands.Update(app),
-			commands.Service(app),
-			commands.Setup(app),
-		},
+		Commands: subCommands,
 	}
 
 	if err := rootCommand.Run(context.Background(), os.Args); err != nil {

@@ -9,7 +9,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func Update(a *app.App) *cli.Command {
+var Update = register(func(a *app.App) *cli.Command {
 	return &cli.Command{
 		Name:  "update",
 		Usage: "update the application",
@@ -42,4 +42,4 @@ func Update(a *app.App) *cli.Command {
 			return a.Update(ctx, false)
 		},
 	}
-}
+})

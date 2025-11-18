@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"sprout/go/app"
-	"sprout/go/discord/client"
 	"sprout/go/discord/listeners"
 	"sprout/go/platform/database/config"
 	"sprout/go/platform/http/server"
 
-	"github.com/Data-Corruption/stdx/xhttp"
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/Data-Corruption/stdx/xnet"
 	"github.com/disgoorg/disgo"
@@ -21,7 +19,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func Service(a *app.App) *cli.Command {
+var Service = register(func(a *app.App) *cli.Command {
 	return &cli.Command{
 		Name:  "service",
 		Usage: "service management commands",
@@ -57,29 +55,6 @@ func Service(a *app.App) *cli.Command {
 					if err := xnet.Wait(ctx, 0); err != nil {
 						return fmt.Errorf("failed to wait for network: %w", err)
 					}
-
-					var srv *xhttp.Server
-
-					// create bot client
-					bClient, err := disgo.New(token,
-						bot.WithGatewayConfigOpts(
-							gateway.WithIntents(gateway.IntentGuildScheduledEvents|gateway.IntentGuilds|gateway.IntentGuildMessages),
-						),
-						bot.WithCacheConfigOpts(
-							cache.WithCaches(cache.FlagsAll),
-						),
-						bot.WithEventListeners(&events.ListenerAdapter{
-							OnReady:                         func(event *events.Ready) { onReady(ctx, event) },
-							OnGuildsReady:                   func(event *events.GuildsReady) { listeners.OnGuildsReady(ctx, event) },
-							OnGuildMessageCreate:            func(event *events.GuildMessageCreate) { listeners.OnGuildMessageCreate(ctx, event) },
-							OnApplicationCommandInteraction: func(event *events.ApplicationCommandInteractionCreate) { listeners.OnCommandInteraction(ctx, event) },
-							OnComponentInteraction:          func(event *events.ComponentInteractionCreate) { listeners.OnComponentInteraction(ctx, event) },
-						}),
-					)
-					if err != nil {
-						return fmt.Errorf("failed to create bot client: %w", err)
-					}
-					ctx = client.IntoContext(ctx, bClient)
 
 					// hello world handler
 					mux := http.NewServeMux()
@@ -133,7 +108,7 @@ func Service(a *app.App) *cli.Command {
 			},
 		},
 	}
-}
+})
 
 // startBot initializes and starts the Discord bot client.
 func startBot(ctx context.Context) error {

@@ -15,7 +15,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func Setup(a *app.App) *cli.Command {
+var Setup = register(func(a *app.App) *cli.Command {
 	return &cli.Command{
 		Name:  "setup",
 		Usage: "setup the bot",
@@ -93,7 +93,7 @@ func Setup(a *app.App) *cli.Command {
 			return err
 		},
 	}
-}
+})
 
 func mysteriousThinking() {
 	for i := 0; i < 3; i++ {

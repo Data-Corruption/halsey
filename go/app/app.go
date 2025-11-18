@@ -33,9 +33,9 @@ type App struct {
 	DB      *wrap.DB
 	Log     *xlog.Logger
 	Net     struct {
-		Server       *xhttp.Server
 		BaseURL      string // e.g., "https://example.com/"
 		UserAgent    string // User-Agent string for network requests
+		Server       *xhttp.Server
 		RedditQueue  *workqueue.Queue
 		YoutubeQueue *workqueue.Queue
 		SettingsAuth *auth.Manager

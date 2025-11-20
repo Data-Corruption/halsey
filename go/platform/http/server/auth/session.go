@@ -11,6 +11,7 @@ import (
 
 type Session struct {
 	UserID     snowflake.ID
+	IsAdmin    bool
 	Expiration time.Time
 }
 
@@ -26,7 +27,7 @@ func ContextWithSession(ctx context.Context, sess Session) context.Context {
 }
 
 func IsUserAdminByID(cfg *config.Config, userID snowflake.ID) (bool, error) {
-	settings, err := config.Get[config.GeneralSettings](cfg, "general_settings")
+	settings, err := config.Get[config.GeneralSettings](cfg, "generalSettings")
 	if err != nil {
 		return false, err
 	}

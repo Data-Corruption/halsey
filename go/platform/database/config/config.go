@@ -24,6 +24,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sprout/go/platform/database"
@@ -67,6 +68,19 @@ func (v *value[T]) SetAny(key string, db *wrap.DB, val any) error {
 		return fmt.Errorf("marshal error for key '%s': %w", key, err)
 	}
 	return db.Write(database.ConfigDBIName, []byte(key), data) // update wrapper pkg to allow direct dbi use
+}
+
+type ctxKey struct{}
+
+func IntoContext(ctx context.Context, config *Config) context.Context {
+	return context.WithValue(ctx, ctxKey{}, config)
+}
+
+func FromContext(ctx context.Context) *Config {
+	if config, ok := ctx.Value(ctxKey{}).(*Config); ok {
+		return config
+	}
+	return nil
 }
 
 type Config struct {

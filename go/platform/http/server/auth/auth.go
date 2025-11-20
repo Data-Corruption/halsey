@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"sprout/go/platform/database/config"
 	"sync"
 	"time"
 
@@ -98,42 +99,52 @@ func (m *Manager) NewSession(userID snowflake.ID) (string, error) {
 
 // Middleware rejects requests without a valid token.
 // Also embeds the session in the request context for downstream handlers to use.
-func (m *Manager) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := r.URL.Query().Get(TokenParam)
-		if token == "" {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		// ensure initialized / get session
-		m.mu.Lock()
-		if !m.init {
-			m.mu.Unlock()
-			xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "internal server error", Err: ErrUninitialized})
-			return
-		}
-		session, exists := m.sessions[token]
-		m.mu.Unlock()
-
-		// handle missing / expired token
-		if !exists || time.Now().After(session.Expiration) {
-			// rate limit
-			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-			defer cancel()
-			if err := m.limit.Wait(ctx); err != nil {
-				// could be err, timeout, or burst exceeded
-				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 429, Msg: "too many requests, try again later", Err: err})
+func (m *Manager) Middleware(cfg *config.Config) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token := r.URL.Query().Get(TokenParam)
+			if token == "" {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
 
-		// put session into context
-		ctx := ContextWithSession(r.Context(), session)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+			// ensure initialized / get session
+			m.mu.Lock()
+			if !m.init {
+				m.mu.Unlock()
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "internal server error", Err: ErrUninitialized})
+				return
+			}
+			session, exists := m.sessions[token]
+			m.mu.Unlock()
+
+			// handle missing / expired token
+			if !exists || time.Now().After(session.Expiration) {
+				// rate limit
+				ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+				defer cancel()
+				if err := m.limit.Wait(ctx); err != nil {
+					// could be err, timeout, or burst exceeded
+					xhttp.Error(r.Context(), w, &xhttp.Err{Code: 429, Msg: "too many requests, try again later", Err: err})
+					return
+				}
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			// check if admin
+			isAdmin, err := IsUserAdminByID(cfg, session.UserID)
+			if err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "internal server error", Err: err})
+				return
+			}
+			session.IsAdmin = isAdmin
+
+			// put session into context
+			ctx := ContextWithSession(r.Context(), session)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }
 
 // genRandomString generates a cryptographically secure random token of n bytes that's URL and filename safe.

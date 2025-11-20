@@ -58,6 +58,20 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 		admin.Post("/update", func(w http.ResponseWriter, r *http.Request) {
 			defer r.Body.Close()
 
+			if a.Version == "vX.X.X" {
+				w.Write([]byte("This is a dev build, update skipped.\n")) // replace this standardized res later
+				return
+			}
+
+			// do we really need to though?
+			if upToDate, err := a.UpdateCheck(); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "error checking for updates", Err: err})
+				return
+			} else if upToDate {
+				w.Write([]byte("I'm already up to date!\n")) // replace this standardized res later
+				return
+			}
+
 			// parse body
 			var body UpdateBody
 			dec := json.NewDecoder(r.Body)
@@ -84,7 +98,7 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 				return
 			}
 			a.Net.Server.Shutdown(nil)
-			w.Write([]byte("starting update...\n"))
+			w.Write([]byte("starting update...\n")) // replace this standardized res later
 		})
 	})
 }

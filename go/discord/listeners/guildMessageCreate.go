@@ -17,6 +17,8 @@ func OnGuildMessageCreate(a *app.App, event *events.GuildMessageCreate) {
 			return
 		}
 
+		a.Log.Info("Received message: ", message.Content)
+
 		// TODO: Listener does per link, msg revive cmd new msg response to og with link to downloaded asset. If solo link attempt expand.
 
 		/* old code

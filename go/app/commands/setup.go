@@ -12,6 +12,7 @@ import (
 
 	"github.com/Data-Corruption/lmdb-go/lmdb"
 	"github.com/Data-Corruption/stdx/xterm/prompt"
+	"github.com/disgoorg/snowflake/v2"
 	"github.com/urfave/cli/v3"
 )
 
@@ -63,7 +64,11 @@ var Setup = register(func(a *app.App) *cli.Command {
 				if err != nil || adminID == "" {
 					return fmt.Errorf("failed to read admin ID: %w", err)
 				}
-				settings.AdminWhitelist = append(settings.AdminWhitelist, adminID)
+				adminIDSnowflake, err := snowflake.Parse(adminID)
+				if err != nil {
+					return fmt.Errorf("failed to parse admin ID as snowflake: %w", err)
+				}
+				settings.AdminWhitelist = append(settings.AdminWhitelist, adminIDSnowflake)
 
 				// write updated settings
 				if err := database.MarshalAndPut(txn, cfgDBI, key, &settings); err != nil {

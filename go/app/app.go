@@ -126,6 +126,8 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command, name, version string) 
 			return ctx, fmt.Errorf("failed to set log level: %w", err)
 		}
 	}
+	// put logger into context
+	ctx = xlog.IntoContext(ctx, a.Log)
 
 	// daily update check / notification
 	if err := a.Notify(); err != nil {
@@ -148,6 +150,7 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command, name, version string) 
 		return nil
 	})
 
+	a.Context = ctx
 	return ctx, nil
 }
 

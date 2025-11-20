@@ -27,12 +27,12 @@ type RestartContext struct {
 }
 
 type GeneralSettings struct {
-	BotToken       string       `json:"botToken"`
-	AdminWhitelist []string     `json:"adminWhitelist"`
-	BotChannelID   snowflake.ID `json:"botChannelID"`
-	BioPicURL      string       `json:"bioPicURL"`  // URL to an image for /about
-	BiohPicURL     string       `json:"biohPicURL"` // URL to an image for /send nudes
-	Downloads      struct {     // whether to enable downloading from these platforms. For backup or expanding functionality
+	BotToken       string         `json:"botToken"`
+	AdminWhitelist []snowflake.ID `json:"adminWhitelist"`
+	BotChannelID   snowflake.ID   `json:"botChannelID"`
+	BioPicURL      string         `json:"bioPicURL"`  // URL to an image for /about
+	BiohPicURL     string         `json:"biohPicURL"` // URL to an image for /send nudes
+	Downloads      struct {       // whether to enable downloading from these platforms. For backup or expanding functionality
 		Instagram bool `json:"instagram"`
 		Reddit    bool `json:"reddit"`
 		Twitter   bool `json:"twitter"`

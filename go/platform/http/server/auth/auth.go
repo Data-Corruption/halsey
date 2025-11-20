@@ -1,4 +1,6 @@
-// package auth provides an ultra simple token-based authentication middleware for HTTP servers.
+// package auth provides a simple token-based authentication middleware for HTTP servers.
+// Sessions generation happens using discord slash commands, are short lived, and sent via private
+// messages to users. This is more than secure enough for the use case.
 package auth
 
 import (
@@ -12,38 +14,44 @@ import (
 	"time"
 
 	"github.com/Data-Corruption/stdx/xhttp"
+	"github.com/disgoorg/snowflake/v2"
 	"golang.org/x/time/rate"
 )
 
 const (
-	TokenParam = "a"
-	DefaultTTL = 10 * time.Minute
-	// use case is very small server / user count, is tuned accordingly
+	TokenParam       = "a"
+	DefaultTTL       = 10 * time.Minute
 	DefaultRateLimit = 1 * time.Second
 	DefaultRateBurst = 5
 )
 
-var ErrUninitialized = errors.New("auth manager not initialized")
+var (
+	ErrUninitialized      = errors.New("auth manager not initialized")
+	ErrTokenCollision     = errors.New("generated token already exists")
+	ErrNoSessionInContext = errors.New("no session in context")
+)
 
 type Manager struct {
-	tokens map[string]time.Time // token -> expiration time
-	ttl    time.Duration
-	limit  *rate.Limiter
-	mu     sync.Mutex
-	init   bool
+	sessions map[string]Session // token -> session
+	ttl      time.Duration
+	limit    *rate.Limiter
+	mu       sync.Mutex
+	init     bool
 }
 
 // New creates a new auth manager. Nil arguments use defaults.
 func New(ttl *time.Duration, limiter *rate.Limiter) *Manager {
-	m := &Manager{tokens: make(map[string]time.Time), init: true}
+	m := &Manager{sessions: make(map[string]Session), init: true}
 	m.ttl = x.Ternary(ttl == nil, DefaultTTL, *ttl)
 	m.limit = x.Ternary(limiter == nil, rate.NewLimiter(rate.Every(DefaultRateLimit), DefaultRateBurst), limiter)
 	return m
 }
 
-// NewToken generates a new token and stores it with an expiration time.
-// Also cleans up expired tokens.
-func (m *Manager) NewToken() (string, error) {
+// NewSession generates a new token for the given user and stores it with an expiration time.
+// It errors if the generated token collides with an existing one.
+// Also cleans up expired sessions.
+// Example URL with token and other params: /download?a=abcd1234&h=hash
+func (m *Manager) NewSession(userID snowflake.ID) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.init {
@@ -55,23 +63,32 @@ func (m *Manager) NewToken() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	expiration := time.Now().Add(m.ttl)
-	m.tokens[token] = expiration
 
-	// clean up expired tokens
+	// check collision
+	if _, exists := m.sessions[token]; exists {
+		return "", ErrTokenCollision
+	}
+
+	expiration := time.Now().Add(m.ttl)
+	m.sessions[token] = Session{
+		UserID:     userID,
+		Expiration: expiration,
+	}
+
+	// clean up expired sessions
 	now := time.Now()
-	for t, exp := range m.tokens {
-		if exp.Before(now) {
-			delete(m.tokens, t)
+	for t, s := range m.sessions {
+		if s.Expiration.Before(now) {
+			delete(m.sessions, t)
 		}
 	}
 
 	return token, nil
 }
 
-// Auth is middleware that rejects requests without a valid token.
-// Example url with token: /download?token=abcd1234
-func (m *Manager) Auth(next http.Handler) http.Handler {
+// Middleware rejects requests without a valid token.
+// Also embeds the session in the request context for downstream handlers to use.
+func (m *Manager) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := r.URL.Query().Get(TokenParam)
 		if token == "" {
@@ -79,18 +96,18 @@ func (m *Manager) Auth(next http.Handler) http.Handler {
 			return
 		}
 
-		// ensure initialized / get token
+		// ensure initialized / get session
 		m.mu.Lock()
 		if !m.init {
 			m.mu.Unlock()
 			xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "internal server error", Err: ErrUninitialized})
 			return
 		}
-		expiration, exists := m.tokens[token]
+		session, exists := m.sessions[token]
 		m.mu.Unlock()
 
 		// handle missing / expired token
-		if !exists || time.Now().After(expiration) {
+		if !exists || time.Now().After(session.Expiration) {
 			// rate limit
 			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 			defer cancel()
@@ -103,7 +120,9 @@ func (m *Manager) Auth(next http.Handler) http.Handler {
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		// put session into context
+		ctx := ContextWithSession(r.Context(), session)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

@@ -93,8 +93,8 @@ func (a *App) UpdateCheck() (bool, error) {
 var once = new(sync.Once)
 
 // Update checks for available updates and prepares the update to be run on exit.
-// Exit after calling this function. Calling more than once has no effect.
-func (a *App) Update(ctx context.Context, detached bool) error {
+// Exit soon after calling this function. Calling more than once has no effect.
+func (a *App) Update(detached bool) error {
 	var returnErr error = nil
 
 	once.Do(func() {

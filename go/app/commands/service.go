@@ -3,11 +3,11 @@ package commands
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"sprout/go/app"
 	"sprout/go/discord/listeners"
 	"sprout/go/platform/database/config"
 	"sprout/go/platform/http/server"
+	"sprout/go/platform/http/server/router"
 
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/Data-Corruption/stdx/xnet"
@@ -56,48 +56,37 @@ var Service = register(func(a *app.App) *cli.Command {
 						return fmt.Errorf("failed to wait for network: %w", err)
 					}
 
-					// hello world handler
-					mux := http.NewServeMux()
-					mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-						w.Write([]byte("Hello World 4\n"))
-					})
-					mux.HandleFunc("/update", func(w http.ResponseWriter, r *http.Request) {
-						// daemon update example. add auth ofc, etc
-						w.Write([]byte("Starting update...\n"))
-						if err := update.Update(ctx, true); err != nil {
-							xlog.Errorf(ctx, "/update update start failed: %s", err)
-						}
-						srv.Shutdown(nil)
-					})
-
 					// create server
-					srv, err = server.New(ctx, mux)
-					if err != nil {
+					mux := router.New(a)
+					if err := server.New(a, mux); err != nil {
 						return fmt.Errorf("failed to create server: %w", err)
 					}
-					server.IntoContext(ctx, srv)
 
 					// get general settings
-					settings, err := config.Get[config.GeneralSettings](ctx, "generalSettings")
+					settings, err := config.Get[config.GeneralSettings](a.Config, "generalSettings")
 					if err != nil {
 						return fmt.Errorf("failed to get general settings from config: %w", err)
 					}
 
 					// start bot if token is set
 					if settings.BotToken != "" {
-						if err = startBot(ctx); err != nil {
-							return fmt.Errorf("failed to start bot: %w", err)
-						}
-						defer disc.Client.Close(context.TODO())
-						if err := disc.Client.OpenGateway(context.TODO()); err != nil {
-							return fmt.Errorf("failed to open gateway: %w", err)
+						if err := createClient(a, settings.BotToken); err != nil {
+							return fmt.Errorf("failed to create bot client: %w", err)
 						}
 					} else {
 						xlog.Warn(ctx, "bot token not set in config, skipping bot startup")
 					}
 
+					// if created the client without issue, start it
+					if a.Client != nil {
+						defer a.Client.Close(context.TODO())
+						if err := a.Client.OpenGateway(context.TODO()); err != nil {
+							return fmt.Errorf("failed to open gateway: %w", err)
+						}
+					}
+
 					// start http server
-					if err := srv.Listen(); err != nil {
+					if err := a.Net.Server.Listen(); err != nil { // blocks until server stops or shutdown signal received
 						return fmt.Errorf("server stopped with error: %w", err)
 					} else {
 						fmt.Println("server stopped gracefully")
@@ -110,23 +99,12 @@ var Service = register(func(a *app.App) *cli.Command {
 	}
 })
 
-// startBot initializes and starts the Discord bot client.
-func startBot(ctx context.Context) error {
-	xlog.Info(ctx, "Starting Halsey...")
-	xlog.Debug(ctx, fmt.Sprintf("disgo version: %s", disgo.Version))
-
-	// get bot token from config
-	token, err := config.Get[string](ctx, "botToken")
-	if err != nil {
-		return fmt.Errorf("bot token not set")
-	}
-	xlog.Debugf(ctx, "Using bot token: %s", token)
-	if token == "" {
-		return fmt.Errorf("bot token is empty")
-	}
-
+func createClient(a *app.App, token string) error {
+	a.Log.Info("Starting Halsey...")
+	a.Log.Debugf("disgo version: %s", disgo.Version)
 	// create bot client
-	if disc.Client, err = disgo.New(token,
+	var err error
+	if a.Client, err = disgo.New(token,
 		bot.WithGatewayConfigOpts(
 			gateway.WithIntents(gateway.IntentGuildScheduledEvents|gateway.IntentGuilds|gateway.IntentGuildMessages),
 		),
@@ -134,20 +112,14 @@ func startBot(ctx context.Context) error {
 			cache.WithCaches(cache.FlagsAll),
 		),
 		bot.WithEventListeners(&events.ListenerAdapter{
-			OnReady:                         func(event *events.Ready) { listeners.OnReady(ctx, event) },
-			OnGuildsReady:                   func(event *events.GuildsReady) { listeners.OnGuildsReady(ctx, registerCommands, event) },
-			OnGuildMessageCreate:            func(event *events.GuildMessageCreate) { listeners.OnGuildMessageCreate(ctx, event) },
-			OnApplicationCommandInteraction: func(event *events.ApplicationCommandInteractionCreate) { listeners.OnCommandInteraction(ctx, event) },
-			OnComponentInteraction:          func(event *events.ComponentInteractionCreate) { listeners.OnComponentInteraction(ctx, event) },
+			OnReady:                         func(event *events.Ready) { listeners.OnReady(a, event) },
+			OnGuildsReady:                   func(event *events.GuildsReady) { listeners.OnGuildsReady(a, event) },
+			OnGuildMessageCreate:            func(event *events.GuildMessageCreate) { listeners.OnGuildMessageCreate(a, event) },
+			OnApplicationCommandInteraction: func(event *events.ApplicationCommandInteractionCreate) { listeners.OnCommandInteraction(a, event) },
+			OnComponentInteraction:          func(event *events.ComponentInteractionCreate) { listeners.OnComponentInteraction(a, event) },
 		}),
 	); err != nil {
 		return fmt.Errorf("failed to create bot client: %w", err)
 	}
-
 	return nil
-}
-
-func onReady(ctx context.Context, event *events.Ready) {
-	fmt.Println("Halsey is now running. Press Ctrl+C to exit.")
-	xlog.Info(ctx, "Halsey is now running.")
 }

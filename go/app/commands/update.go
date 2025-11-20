@@ -39,7 +39,7 @@ var Update = register(func(a *app.App) *cli.Command {
 				}
 				return nil
 			}
-			return a.Update(ctx, false)
+			return a.Update(false)
 		},
 	}
 })

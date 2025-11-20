@@ -1,10 +1,9 @@
 package listeners
 
 import (
-	"slices"
 	"sprout/go/app"
 	"sprout/go/discord/commands"
-	"sprout/go/platform/database/config"
+	"sprout/go/platform/http/server/auth"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
@@ -34,15 +33,16 @@ func OnCommandInteraction(a *app.App, event *events.ApplicationCommandInteractio
 
 		// admin check
 		if command.RequireAdmin {
-			// get general setting
-			settings, err := config.Get[config.GeneralSettings](a.Config, "generalSettings")
-			if err != nil {
-				a.Log.Errorf("Error getting general settings from config: %s", err)
+			if isAdmin, err := auth.IsUserAdminByID(a.Config, event.User().ID); err != nil {
+				a.Log.Errorf("Error checking if user is admin: %s", err)
+				if err := event.Respond(discord.InteractionResponseTypeCreateMessage, discord.NewMessageCreateBuilder().
+					SetContent("Internal server error.").
+					SetEphemeral(true).
+					Build()); err != nil {
+					a.Log.Errorf("Error responding to interaction: %s", err)
+				}
 				return
-			}
-			userID := event.User().ID.String()
-			if !slices.Contains(settings.AdminWhitelist, userID) {
-				a.Log.Warnf("User %s is not an admin", userID)
+			} else if !isAdmin {
 				if err := event.Respond(discord.InteractionResponseTypeCreateMessage, discord.NewMessageCreateBuilder().
 					SetContent("You do not have permission to use this command.").
 					SetEphemeral(true).

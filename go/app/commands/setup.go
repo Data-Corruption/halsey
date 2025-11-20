@@ -80,20 +80,24 @@ var Setup = register(func(a *app.App) *cli.Command {
 
 				// write update followup to register commands on restart
 				rc := config.RestartContext{RegisterCmds: true}
-				if err := config.Set(a.Config, "restartContext", &rc); err != nil {
+				if err := config.Set(a.Config, "restartContext", rc); err != nil {
 					return fmt.Errorf("failed to set update followup in config: %w", err)
 				}
 
-				x.Typewrite("\nLooks good, restarting now, you should see me get on discord in a moment\n", 25)
-				a.SetPostCleanup(func() error {
-					iCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					defer cancel()
-					cmd := exec.CommandContext(iCtx, "systemctl", "--user", "restart", "halsey.service") // fine since not an update / migration
-					if out, err := cmd.CombinedOutput(); err != nil {
-						return fmt.Errorf("failed to restart service: %v, output: %s", err, string(out))
-					}
-					return nil
-				})
+				if a.Version != "vX.X.X" {
+					x.Typewrite("\nLooks good, restarting now, you should see me get on discord in a moment\n", 25)
+					a.SetPostCleanup(func() error {
+						iCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+						defer cancel()
+						cmd := exec.CommandContext(iCtx, "systemctl", "--user", "restart", "halsey.service") // fine since not an update / migration
+						if out, err := cmd.CombinedOutput(); err != nil {
+							return fmt.Errorf("failed to restart service: %v, output: %s", err, string(out))
+						}
+						return nil
+					})
+				} else {
+					x.Typewrite("\nDev build detected, skipping daemon restart.\n", 25)
+				}
 			}
 			return err
 		},

@@ -14,7 +14,7 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
-func OnGuildsReady(a *app.App, event *events.GuildsReady) {
+func OnGuildsReady(a *app.App, event *events.GuildsReady, rcFlag bool) {
 	// get guild DBI
 	gDBI, ok := a.DB.GetDBis()[database.GuildsDBIName]
 	if !ok {
@@ -92,7 +92,7 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady) {
 	}
 
 	// register commands if requested
-	if rCtx.RegisterCmds {
+	if rCtx.RegisterCmds || rcFlag {
 		a.Log.Info("Registering commands...")
 		registerCmds(a)
 	}

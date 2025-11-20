@@ -50,6 +50,12 @@ var Service = register(func(a *app.App) *cli.Command {
 			{
 				Name:        "run",
 				Description: "Runs service in foreground. Typically called by systemd. If you need to run it manually/unmanaged, use this command.",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "rc",
+						Usage: "register commands on startup",
+					},
+				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					// wait for network (systemd user mode Wants/After is unreliable)
 					if err := xnet.Wait(ctx, 0); err != nil {
@@ -70,7 +76,7 @@ var Service = register(func(a *app.App) *cli.Command {
 
 					// start bot if token is set
 					if settings.BotToken != "" {
-						if err := createClient(a, settings.BotToken); err != nil {
+						if err := createClient(a, settings.BotToken, cmd.Bool("rc")); err != nil {
 							return fmt.Errorf("failed to create bot client: %w", err)
 						}
 					} else {
@@ -99,7 +105,7 @@ var Service = register(func(a *app.App) *cli.Command {
 	}
 })
 
-func createClient(a *app.App, token string) error {
+func createClient(a *app.App, token string, rcFlag bool) error {
 	a.Log.Info("Starting Halsey...")
 	a.Log.Debugf("disgo version: %s", disgo.Version)
 	// create bot client
@@ -113,7 +119,7 @@ func createClient(a *app.App, token string) error {
 		),
 		bot.WithEventListeners(&events.ListenerAdapter{
 			OnReady:                         func(event *events.Ready) { listeners.OnReady(a, event) },
-			OnGuildsReady:                   func(event *events.GuildsReady) { listeners.OnGuildsReady(a, event) },
+			OnGuildsReady:                   func(event *events.GuildsReady) { listeners.OnGuildsReady(a, event, rcFlag) },
 			OnGuildMessageCreate:            func(event *events.GuildMessageCreate) { listeners.OnGuildMessageCreate(a, event) },
 			OnApplicationCommandInteraction: func(event *events.ApplicationCommandInteractionCreate) { listeners.OnCommandInteraction(a, event) },
 			OnComponentInteraction:          func(event *events.ComponentInteractionCreate) { listeners.OnComponentInteraction(a, event) },

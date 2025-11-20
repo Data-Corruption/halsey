@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
-	"sprout/go/platform/x"
 	"sync"
 	"time"
 
@@ -41,9 +40,20 @@ type Manager struct {
 
 // New creates a new auth manager. Nil arguments use defaults.
 func New(ttl *time.Duration, limiter *rate.Limiter) *Manager {
-	m := &Manager{sessions: make(map[string]Session), init: true}
-	m.ttl = x.Ternary(ttl == nil, DefaultTTL, *ttl)
-	m.limit = x.Ternary(limiter == nil, rate.NewLimiter(rate.Every(DefaultRateLimit), DefaultRateBurst), limiter)
+	m := &Manager{
+		sessions: make(map[string]Session),
+		ttl:      DefaultTTL,
+		limit:    rate.NewLimiter(rate.Every(DefaultRateLimit), DefaultRateBurst),
+		init:     true,
+	}
+
+	if ttl != nil {
+		m.ttl = *ttl
+	}
+	if limiter != nil {
+		m.limit = limiter
+	}
+
 	return m
 }
 

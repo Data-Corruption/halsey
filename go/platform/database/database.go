@@ -18,6 +18,8 @@ Assets
 	<url> -> <hash.ext> (<hash of hashes>.tar for galleries, etc)
 Favorites
 	<source message id> -> ID of copy in fav channel
+Users
+	<id> -> marshaled User struct
 Channels
 	<id> -> marshaled Channel struct
 Guilds
@@ -30,6 +32,7 @@ const (
 	ArchiveDBIName   = "archive"
 	AssetsDBIName    = "assets"
 	FavoritesDBIName = "favorites"
+	UsersDBIName     = "users"
 	ChannelsDBIName  = "channels"
 	GuildsDBIName    = "guilds"
 	// Add more DBI names as needed, e.g., UserDBIName, SessionDBIName, etc. Also update the slice below to include them.
@@ -37,7 +40,18 @@ const (
 )
 
 // Slice for easy initialization. As stated above, if you add more DBIs you'll need to update this slice as well.
-var DBINameList = []string{ConfigDBIName, ArchiveDBIName, AssetsDBIName, FavoritesDBIName, ChannelsDBIName, GuildsDBIName}
+var DBINameList = []string{ConfigDBIName, ArchiveDBIName, AssetsDBIName, FavoritesDBIName, UsersDBIName, ChannelsDBIName, GuildsDBIName}
+
+type User struct {
+	Backups    bool `json:"backups"`
+	AntiRot    bool `json:"antiRot"`
+	AutoExpand struct {
+		Instagram bool `json:"instagram"`
+		Reddit    bool `json:"reddit"`
+		Twitter   bool `json:"twitter"`
+		YouTube   bool `json:"youTube"`
+	} `json:"autoExpand"`
+}
 
 type Channel struct {
 	GuildID snowflake.ID `json:"guildID"`

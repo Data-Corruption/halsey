@@ -34,7 +34,7 @@ func main() {
 	rootCommand := &cli.Command{
 		Name:    name,
 		Version: version,
-		Usage:   "example application",
+		Usage:   "The best bot in the world ;3 xoxo",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "log",

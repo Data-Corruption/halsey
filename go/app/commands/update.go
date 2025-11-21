@@ -12,7 +12,7 @@ import (
 var Update = register(func(a *app.App) *cli.Command {
 	return &cli.Command{
 		Name:  "update",
-		Usage: "update the application",
+		Usage: "update the bot",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "notify",

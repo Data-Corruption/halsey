@@ -2,6 +2,7 @@ package commands
 
 import (
 	"sprout/go/app"
+	"sprout/go/discord/emojis"
 	"sprout/go/platform/database/config"
 
 	"github.com/disgoorg/disgo/discord"
@@ -54,7 +55,7 @@ var Update = register(BotCommand{
 
 		// send initial update message
 		uMsg, err := a.Client.Rest.CreateFollowupMessage(a.Client.ApplicationID, event.Token(), discord.NewMessageCreateBuilder().
-			SetContent("Starting update... This may take a minute.").
+			SetContentf("%s Updating... This may take a minute.", emojis.GetSpinnerEmoji(a)).
 			SetEphemeral(true).
 			Build())
 		if err != nil {

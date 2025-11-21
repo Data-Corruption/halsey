@@ -59,7 +59,7 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 			defer r.Body.Close()
 
 			if a.Version == "vX.X.X" {
-				w.Write([]byte("This is a dev build, update skipped.\n")) // replace this standardized res later
+				w.Write([]byte("This is a dev build, skipping update.\n")) // replace this standardized res later
 				return
 			}
 

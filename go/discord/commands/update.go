@@ -15,7 +15,7 @@ var Update = register(BotCommand{
 	FilterBots:   true,
 	Data: discord.SlashCommandCreate{
 		Name:        "update",
-		Description: "Backup update trigger in case of UI issues.",
+		Description: "Alternative update trigger in case of web UI issues.",
 		Options: []discord.ApplicationCommandOption{
 			discord.ApplicationCommandOptionBool{
 				Name:        "register-commands",

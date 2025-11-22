@@ -1,8 +1,0 @@
-{
-    "go.inlayHints.constantValues": true,
-    "gopls": {
-        "ui.diagnostic.analyses": {
-            "SA1012": false
-        },
-    }
-}

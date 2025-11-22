@@ -2,7 +2,7 @@ package database
 
 import (
 	"fmt"
-	"sprout/go/platform/x/migrator"
+	"sprout/go/pkg/migrator"
 	"time"
 
 	"github.com/Data-Corruption/lmdb-go/lmdb"

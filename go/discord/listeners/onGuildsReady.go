@@ -5,7 +5,6 @@ import (
 	"sprout/go/app"
 	"sprout/go/discord/commands"
 	"sprout/go/platform/database"
-	"sprout/go/platform/database/config"
 	"time"
 
 	"github.com/Data-Corruption/lmdb-go/lmdb"
@@ -35,7 +34,7 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, rcFlag bool) {
 
 			// get guild from database, create if not exists
 			var dbGuild database.Guild
-			err := database.GetAndUnmarshal(txn, gDBI, key, &dbGuild)
+			err := database.TxnGetAndUnmarshal(txn, gDBI, key, &dbGuild)
 			if err != nil {
 				if lmdb.IsNotFound(err) {
 					// write guild to database with default values
@@ -47,7 +46,7 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, rcFlag bool) {
 						PremiumTier:  int(guild.PremiumTier),
 						// backup defaults to not enabled/empty runID
 					}
-					if err := database.MarshalAndPut(txn, gDBI, key, &newGuild); err != nil {
+					if err := database.TxnMarshalAndPut(txn, gDBI, key, &newGuild); err != nil {
 						return fmt.Errorf("failed to add new guild to database: %w", err)
 					}
 					continue
@@ -69,7 +68,7 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, rcFlag bool) {
 			}
 
 			// write updated guild back to database
-			if err := database.MarshalAndPut(txn, gDBI, key, &dbGuild); err != nil {
+			if err := database.TxnMarshalAndPut(txn, gDBI, key, &dbGuild); err != nil {
 				return fmt.Errorf("failed to update guild %s in database: %w", guild.ID, err)
 			}
 		}
@@ -79,15 +78,14 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, rcFlag bool) {
 		return
 	}
 
-	// get restartContext from config
-	rCtx, err := config.Get[config.RestartContext](a.Config, "restartContext")
-	if err != nil {
-		a.Log.Errorf("failed to get restartContext from config: %s", err)
-		return
-	}
-	// clear restartContext in config
-	if err := config.Set(a.Config, "restartContext", config.RestartContext{}); err != nil {
-		a.Log.Errorf("failed to clear restartContext in config: %s", err)
+	// get a copy of and then clear restart context
+	var rCtx database.RestartContext
+	if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
+		rCtx = cfg.RestartCtx                      // copy current
+		cfg.RestartCtx = database.RestartContext{} // clear
+		return nil
+	}); err != nil {
+		a.Log.Errorf("failed to clear restartContext in database config: %s", err)
 		return
 	}
 
@@ -101,7 +99,7 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, rcFlag bool) {
 	// update the /update interaction if exists
 	if rCtx.IToken != "" && rCtx.MessageID != 0 {
 		a.Log.Infof("Following up on update interaction. Token: %s, MessageID: %s", rCtx.IToken, rCtx.MessageID.String())
-		_, err = a.Client.Rest.UpdateFollowupMessage(a.Client.ApplicationID, rCtx.IToken, rCtx.MessageID, discord.NewMessageUpdateBuilder().
+		_, err := a.Client.Rest.UpdateFollowupMessage(a.Client.ApplicationID, rCtx.IToken, rCtx.MessageID, discord.NewMessageUpdateBuilder().
 			SetContentf("Updated to version %s successfully!", a.Version).Build())
 		if err != nil {
 			a.Log.Errorf("failed to update followup message: %s", err)
@@ -109,7 +107,7 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, rcFlag bool) {
 		}
 	}
 
-	// TODO: start backup service
+	// TODO: start backup service when i build that
 
 }
 

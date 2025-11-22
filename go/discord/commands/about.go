@@ -3,7 +3,7 @@ package commands
 import (
 	"fmt"
 	"sprout/go/app"
-	"sprout/go/platform/database/config"
+	"sprout/go/platform/database"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
@@ -27,19 +27,19 @@ var About = register(BotCommand{
 		Description: "Learn more about me ;p",
 	},
 	Handler: func(a *app.App, event *events.ApplicationCommandInteractionCreate) error {
-		// get generalSettings
-		settings, err := config.Get[config.GeneralSettings](a.Config, "generalSettings")
+		// get configuration
+		cfg, err := database.ViewConfig(a.DB)
 		if err != nil {
-			return fmt.Errorf("failed to get general settings: %w", err)
+			return fmt.Errorf("failed to get configuration from database: %w", err)
 		}
 
 		msgBuilder := discord.NewMessageCreateBuilder().SetFlags(discord.MessageFlagIsComponentsV2)
 		msgBuilder.AddComponents(discord.NewTextDisplay("> " + a.Version + "\n```" + banner + "```"))
-		if settings.BioPicURL != "" {
+		if cfg.BioImageURL != "" {
 			msgBuilder.AddComponents(
 				discord.NewMediaGallery(
 					discord.MediaGalleryItem{
-						Media:       discord.UnfurledMediaItem{URL: settings.BioPicURL},
+						Media:       discord.UnfurledMediaItem{URL: cfg.BioImageURL},
 						Description: "Halsey's biography picture",
 					},
 				),

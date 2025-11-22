@@ -9,10 +9,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
-	"sprout/go/platform/database/config"
 	"sync"
 	"time"
 
+	"github.com/Data-Corruption/lmdb-go/wrap"
 	"github.com/Data-Corruption/stdx/xhttp"
 	"github.com/disgoorg/snowflake/v2"
 	"golang.org/x/time/rate"
@@ -99,7 +99,7 @@ func (m *Manager) NewSession(userID snowflake.ID) (string, error) {
 
 // Middleware rejects requests without a valid token.
 // Also embeds the session in the request context for downstream handlers to use.
-func (m *Manager) Middleware(cfg *config.Config) func(http.Handler) http.Handler {
+func (m *Manager) Middleware(db *wrap.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := r.URL.Query().Get(TokenParam)
@@ -133,7 +133,7 @@ func (m *Manager) Middleware(cfg *config.Config) func(http.Handler) http.Handler
 			}
 
 			// check if admin
-			isAdmin, err := IsUserAdminByID(cfg, session.UserID)
+			isAdmin, err := IsUserAdminByID(db, session.UserID)
 			if err != nil {
 				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "internal server error", Err: err})
 				return

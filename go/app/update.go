@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"sprout/go/platform/database/config"
+	"sprout/go/platform/database"
 	"sprout/go/platform/git"
 	"sync"
 	"time"
@@ -30,22 +30,21 @@ const UpdateTimeout = 10 * time.Minute // max time for update process
 // It checks for updates once a day.
 func (a *App) Notify() error {
 	// check if update notifications are enabled
-	updateNotify, err := config.Get[bool](a.Config, "updateNotify")
+	cfg, err := database.ViewConfig(a.DB)
 	if err != nil {
-		return fmt.Errorf("failed to get updateNotify from config: %w", err)
+		return fmt.Errorf("failed to view config: %w", err)
 	}
-	if updateNotify {
-		// get last update check time from config
-		t, err := config.Get[time.Time](a.Config, "lastUpdateCheck")
-		if err != nil {
-			return fmt.Errorf("failed to get lastUpdateCheck from config: %w", err)
-		}
+
+	if cfg.UpdateNotifications {
 		// once a day, very lightweight check, trying to be polite to github
-		if time.Since(t) > 24*time.Hour {
+		if time.Since(cfg.LastUpdateCheck) > 24*time.Hour {
 			a.Log.Debug("Checking for updates...")
 			// update check time in config
-			if err := config.Set(a.Config, "lastUpdateCheck", time.Now()); err != nil {
-				return fmt.Errorf("failed to set lastUpdateCheck in config: %w", err)
+			if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
+				cfg.LastUpdateCheck = time.Now()
+				return nil
+			}); err != nil {
+				return fmt.Errorf("failed to update lastUpdateCheck in config: %w", err)
 			}
 			updateAvailable, err := a.UpdateCheck()
 			if err != nil {
@@ -83,8 +82,11 @@ func (a *App) UpdateCheck() (bool, error) {
 	a.Log.Debugf("Latest version: %s, Current version: %s, Update available: %t", latest, a.Version, updateAvailable)
 
 	// update config
-	if err := config.Set(a.Config, "updateAvailable", updateAvailable); err != nil {
-		return false, err
+	if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
+		cfg.UpdateAvailable = updateAvailable
+		return nil
+	}); err != nil {
+		return false, fmt.Errorf("failed to update updateAvailable in config: %w", err)
 	}
 
 	return updateAvailable, nil
@@ -123,10 +125,12 @@ func (a *App) Update(detached bool) error {
 		}
 		fmt.Println("New version available:", latest)
 
-		// update config. Treat updates as lazy and not super critical. Fine to set here and
-		// have the update fail and user go a day without it. Just a notification after all.
-		if err := config.Set(a.Config, "updateAvailable", false); err != nil {
-			returnErr = fmt.Errorf("failed to set updateAvailable in config: %w", err)
+		// update config
+		if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
+			cfg.UpdateAvailable = false
+			return nil
+		}); err != nil {
+			returnErr = fmt.Errorf("failed to update updateAvailable in config: %w", err)
 			return
 		}
 

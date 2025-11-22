@@ -6,11 +6,9 @@ import (
 	"os/exec"
 	"sprout/go/app"
 	"sprout/go/platform/database"
-	"sprout/go/platform/database/config"
 	"sprout/go/platform/x"
 	"time"
 
-	"github.com/Data-Corruption/lmdb-go/lmdb"
 	"github.com/Data-Corruption/stdx/xterm/prompt"
 	"github.com/disgoorg/snowflake/v2"
 	"github.com/urfave/cli/v3"
@@ -35,71 +33,58 @@ var Setup = register(func(a *app.App) *cli.Command {
 			x.Typewrite("Hello, It's a pleasure to meet you, I'm Halsey\n", 25)
 			x.Typewrite("When you're ready, enter your bot token\n", 25)
 
-			cfgDBI, ok := a.DB.GetDBis()[database.ConfigDBIName]
-			if !ok {
-				return fmt.Errorf("failed to get config DBI from app DB")
+			// get bot token
+			token, err := prompt.String("")
+			if err != nil || token == "" {
+				return fmt.Errorf("failed to read bot token: %w", err)
 			}
 
-			err := a.DB.Update(func(txn *lmdb.Txn) error {
-				// read general settings
-				key := []byte("generalSettings")
-				var settings config.GeneralSettings
-				if err := database.GetAndUnmarshal(txn, cfgDBI, key, &settings); err != nil {
-					if !lmdb.IsNotFound(err) {
-						return fmt.Errorf("failed to get general settings: %w", err)
-					}
-				}
+			x.Typewrite("\nGreat, now your discord user ID.\nYou can get it by enabling dev mode in discord and right clicking your name)\n", 25)
 
-				// bot token
-				token, err := prompt.String("")
-				if err != nil || token == "" {
-					return fmt.Errorf("failed to read bot token: %w", err)
-				}
-				settings.BotToken = token
+			// get bootstrap admin ID
+			idStr, err := prompt.String("")
+			if err != nil || idStr == "" {
+				return fmt.Errorf("failed to read admin ID: %w", err)
+			}
+			userID, err := snowflake.Parse(idStr)
+			if err != nil {
+				return fmt.Errorf("failed to parse admin ID as snowflake: %w", err)
+			}
 
-				x.Typewrite("\nGreat, now your discord user ID.\nYou can get it by enabling dev mode in discord and right clicking your name)\n", 25)
+			// Write them both to the database
 
-				// admin ID
-				adminID, err := prompt.String("")
-				if err != nil || adminID == "" {
-					return fmt.Errorf("failed to read admin ID: %w", err)
-				}
-				adminIDSnowflake, err := snowflake.Parse(adminID)
-				if err != nil {
-					return fmt.Errorf("failed to parse admin ID as snowflake: %w", err)
-				}
-				settings.AdminWhitelist = append(settings.AdminWhitelist, adminIDSnowflake)
+			if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
+				cfg.BotToken = token
+				cfg.RestartCtx.RegisterCmds = true // likely first run, ensure commands are registered
+				return nil
+			}); err != nil {
+				return fmt.Errorf("failed to update notification setting in config: %w", err)
+			}
 
-				// write updated settings
-				if err := database.MarshalAndPut(txn, cfgDBI, key, &settings); err != nil {
-					return fmt.Errorf("failed to store general settings: %w", err)
+			if _, err := database.UpsertUser(a.DB, userID, func(user *database.User) error {
+				user.IsAdmin = true
+				return nil
+			}); err != nil {
+				return fmt.Errorf("failed to set user %d as admin: %w", userID, err)
+			}
+
+			if a.Version == "vX.X.X" {
+				x.Typewrite("\nDevelopment build detected, skipping update check.\n", 25)
+				return nil
+			}
+
+			x.Typewrite("\nLooks good, restarting now, you should see me get on discord in a moment\n", 25)
+			a.SetPostCleanup(func() error {
+				iCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				cmd := exec.CommandContext(iCtx, "systemctl", "--user", "restart", "halsey.service") // fine since not an update / migration
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("failed to restart service: %v, output: %s", err, string(out))
 				}
 				return nil
 			})
-			if err == nil {
 
-				// write update followup to register commands on restart
-				rc := config.RestartContext{RegisterCmds: true}
-				if err := config.Set(a.Config, "restartContext", rc); err != nil {
-					return fmt.Errorf("failed to set update followup in config: %w", err)
-				}
-
-				if a.Version != "vX.X.X" {
-					x.Typewrite("\nLooks good, restarting now, you should see me get on discord in a moment\n", 25)
-					a.SetPostCleanup(func() error {
-						iCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-						defer cancel()
-						cmd := exec.CommandContext(iCtx, "systemctl", "--user", "restart", "halsey.service") // fine since not an update / migration
-						if out, err := cmd.CombinedOutput(); err != nil {
-							return fmt.Errorf("failed to restart service: %v, output: %s", err, string(out))
-						}
-						return nil
-					})
-				} else {
-					x.Typewrite("\nDev build detected, skipping daemon restart.\n", 25)
-				}
-			}
-			return err
+			return nil
 		},
 	}
 })

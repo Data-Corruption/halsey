@@ -4,19 +4,14 @@ import (
 	"fmt"
 	"net/http"
 	"sprout/go/app"
-	"sprout/go/platform/database/config"
 	"sprout/go/platform/sdnotify"
 
 	"github.com/Data-Corruption/stdx/xhttp"
 )
 
-func New(app *app.App, handler http.Handler) error {
-	// get http server related stuff from config
-	port, err := config.Get[int](app.Config, "port")
-	if err != nil {
-		return fmt.Errorf("failed to get port from config: %w", err)
-	}
+func New(app *app.App, port int, handler http.Handler) error {
 	// create http server
+	var err error
 	app.Net.Server, err = xhttp.NewServer(&xhttp.ServerConfig{
 		Addr:    fmt.Sprintf(":%d", port),
 		UseTLS:  false,

@@ -3,7 +3,7 @@ package commands
 import (
 	"sprout/go/app"
 	"sprout/go/discord/emojis"
-	"sprout/go/platform/database/config"
+	"sprout/go/platform/database"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
@@ -63,13 +63,19 @@ var Update = register(BotCommand{
 		}
 
 		// set update context in config
-		rc := config.RestartContext{
+		rc := database.RestartContext{
 			RegisterCmds: rcStr,
 			IToken:       event.Token(),
 			MessageID:    uMsg.ID,
 		}
-		if err := config.Set(a.Config, "restartContext", rc); err != nil {
-			a.Log.Errorf("failed to set restartContext in config: %s", err)
+		if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
+			cfg.RestartCtx = rc
+			return nil
+		}); err != nil {
+			a.Log.Errorf("Error updating restart context in config: %s", err)
+			a.Client.Rest.UpdateFollowupMessage(a.Client.ApplicationID, event.Token(), uMsg.ID, discord.NewMessageUpdateBuilder().
+				SetContent("Error preparing for update. Please check the logs for more details.").
+				Build())
 			return err
 		}
 

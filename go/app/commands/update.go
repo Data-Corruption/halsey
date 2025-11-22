@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sprout/go/app"
-	"sprout/go/platform/database/config"
+	"sprout/go/platform/database"
 
 	"github.com/urfave/cli/v3"
 )
@@ -22,17 +22,16 @@ var Update = register(func(a *app.App) *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			notify := cmd.Bool("notify")
 			if notify {
-				// get current
-				updateNotify, err := config.Get[bool](a.Config, "updateNotify")
-				if err != nil {
-					return fmt.Errorf("failed to get updateNotify from config: %w", err)
-				}
-				// set opposite
-				if err := config.Set(a.Config, "updateNotify", !updateNotify); err != nil {
-					return fmt.Errorf("failed to set updateNotify in config: %w", err)
+				var updateNotifications bool
+				if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
+					cfg.UpdateNotifications = !cfg.UpdateNotifications
+					updateNotifications = cfg.UpdateNotifications
+					return nil
+				}); err != nil {
+					return fmt.Errorf("failed to update notification setting in config: %w", err)
 				}
 				// print status
-				if !updateNotify {
+				if !updateNotifications {
 					fmt.Println("Update notifications are now enabled.")
 				} else {
 					fmt.Println("Update notifications are now disabled.")

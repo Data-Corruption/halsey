@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sprout/go/app"
-	"sprout/go/platform/database/config"
+	"sprout/go/platform/database"
 	"sprout/go/platform/http/server/auth"
 
 	"github.com/Data-Corruption/stdx/xhttp"
@@ -18,7 +18,7 @@ type UpdateBody struct {
 
 func settingsRoutes(a *app.App, r *chi.Mux) {
 	r.Route("/settings", func(s chi.Router) {
-		s.Use(a.Net.SettingsAuth.Middleware(a.Config))
+		s.Use(a.Net.SettingsAuth.Middleware(a.DB))
 
 		s.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("setting page\n"))
@@ -85,10 +85,12 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 				return
 			}
 
-			// set update context in config
-			rc := config.RestartContext{RegisterCmds: body.RegisterCommands}
-			if err := config.Set(a.Config, "restartContext", &rc); err != nil {
-				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to set update context in config", Err: err})
+			// update restart context in config
+			if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
+				cfg.RestartCtx.RegisterCmds = body.RegisterCommands
+				return nil
+			}); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to update config", Err: err})
 				return
 			}
 

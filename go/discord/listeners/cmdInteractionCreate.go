@@ -33,7 +33,7 @@ func OnCommandInteraction(a *app.App, event *events.ApplicationCommandInteractio
 
 		// admin check
 		if command.RequireAdmin {
-			if isAdmin, err := auth.IsUserAdminByID(a.Config, event.User().ID); err != nil {
+			if isAdmin, err := auth.IsUserAdminByID(a.DB, event.User().ID); err != nil {
 				a.Log.Errorf("Error checking if user is admin: %s", err)
 				if err := event.Respond(discord.InteractionResponseTypeCreateMessage, discord.NewMessageCreateBuilder().
 					SetContent("Internal server error.").

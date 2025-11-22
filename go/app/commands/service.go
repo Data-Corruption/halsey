@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sprout/go/app"
 	"sprout/go/discord/listeners"
-	"sprout/go/platform/database/config"
+	"sprout/go/platform/database"
 	"sprout/go/platform/http/server"
 	"sprout/go/platform/http/server/router"
 
@@ -62,21 +62,21 @@ var Service = register(func(a *app.App) *cli.Command {
 						return fmt.Errorf("failed to wait for network: %w", err)
 					}
 
+					// get configuration
+					cfg, err := database.ViewConfig(a.DB)
+					if err != nil {
+						return fmt.Errorf("failed to get configuration from database: %w", err)
+					}
+
 					// create server
 					mux := router.New(a)
-					if err := server.New(a, mux); err != nil {
+					if err := server.New(a, cfg.Port, mux); err != nil {
 						return fmt.Errorf("failed to create server: %w", err)
 					}
 
-					// get general settings
-					settings, err := config.Get[config.GeneralSettings](a.Config, "generalSettings")
-					if err != nil {
-						return fmt.Errorf("failed to get general settings from config: %w", err)
-					}
-
 					// start bot if token is set
-					if settings.BotToken != "" {
-						if err := createClient(a, settings.BotToken, cmd.Bool("rc")); err != nil {
+					if cfg.BotToken != "" {
+						if err := createClient(a, cfg.BotToken, cmd.Bool("rc")); err != nil {
 							return fmt.Errorf("failed to create bot client: %w", err)
 						}
 					} else {

@@ -2,10 +2,10 @@ package auth
 
 import (
 	"context"
-	"slices"
-	"sprout/go/platform/database/config"
+	"sprout/go/platform/database"
 	"time"
 
+	"github.com/Data-Corruption/lmdb-go/wrap"
 	"github.com/disgoorg/snowflake/v2"
 )
 
@@ -26,11 +26,16 @@ func ContextWithSession(ctx context.Context, sess Session) context.Context {
 	return context.WithValue(ctx, sessCtxKey{}, sess)
 }
 
-func IsUserAdminByID(cfg *config.Config, userID snowflake.ID) (bool, error) {
-	settings, err := config.Get[config.GeneralSettings](cfg, "generalSettings")
+// IsUserAdminByID checks if a user is an admin by their user ID.
+// Returns true if the user exists and is an admin, false otherwise.
+// See lmdb.IsNotFound(err) for branching on user not found vs other errors.
+func IsUserAdminByID(db *wrap.DB, userID snowflake.ID) (bool, error) {
+	user, err := database.ViewUser(db, userID)
 	if err != nil {
 		return false, err
 	}
-	found := slices.Contains(settings.AdminWhitelist, userID)
-	return found, nil
+	if user != nil && user.IsAdmin {
+		return true, nil
+	}
+	return false, nil
 }

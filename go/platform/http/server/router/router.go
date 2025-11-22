@@ -25,7 +25,7 @@ func New(a *app.App) *chi.Mux {
 	})
 
 	r.Route("/download", func(s chi.Router) {
-		s.Use(a.Net.DownloadAuth.Middleware(a.Config))
+		s.Use(a.Net.DownloadAuth.Middleware(a.DB))
 
 		s.Get("/backup", func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("downloaded backed up server messages\n"))

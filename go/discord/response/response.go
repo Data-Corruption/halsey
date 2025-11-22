@@ -3,7 +3,7 @@ package response
 import (
 	"fmt"
 	"sprout/go/app"
-	"sprout/go/platform/database/config"
+	"sprout/go/platform/database"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/snowflake/v2"
@@ -23,13 +23,12 @@ func ReactToMessage(a *app.App, channelID snowflake.ID, messageID snowflake.ID, 
 // Returns the created message or an error.
 // messageCreate example: discord.NewMessageCreateBuilder().SetContent("Hello, bot channel!").Build()
 func MessageBotChannel(a *app.App, messageCreate discord.MessageCreate) (*discord.Message, error) {
-	// get general settings
-	settings, err := config.Get[config.GeneralSettings](a.Config, "generalSettings")
+	cfg, err := database.ViewConfig(a.DB)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get general settings from config: %w", err)
+		return nil, fmt.Errorf("failed to view config: %w", err)
 	}
-	if settings.BotChannelID == 0 {
+	if cfg.BotChannelID == 0 {
 		return nil, fmt.Errorf("bot channel ID is not set in general settings")
 	}
-	return a.Client.Rest.CreateMessage(settings.BotChannelID, messageCreate)
+	return a.Client.Rest.CreateMessage(cfg.BotChannelID, messageCreate)
 }

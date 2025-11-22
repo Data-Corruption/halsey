@@ -9,7 +9,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"sprout/go/platform/database"
-	"sprout/go/platform/database/config"
 	"sprout/go/platform/http/server/auth"
 	"sprout/go/platform/x"
 	"sprout/go/platform/x/compress"
@@ -28,10 +27,9 @@ import (
 type App struct {
 	Name    string
 	Version string
-	Config  *config.Config
-	Client  *bot.Client
 	DB      *wrap.DB
 	Log     *xlog.Logger
+	Client  *bot.Client
 	Net     struct {
 		BaseURL      string // e.g., "https://example.com/"
 		UserAgent    string // User-Agent string for network requests
@@ -90,39 +88,30 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command, name, version string) 
 		a.Name, a.Version, a.Paths.Storage, a.Paths.Runtime)
 
 	// database
-	a.DB, _, err = wrap.New(filepath.Join(a.Paths.Storage, "db"), database.DBINameList)
-	if err != nil {
-		if a.DB != nil {
-			a.DB.Close()
-		}
+	if a.DB, err = database.New(filepath.Join(a.Paths.Storage, "db"), a.Log); err != nil {
 		return ctx, fmt.Errorf("failed to initialize database: %w", err)
 	}
 	a.AddCleanup(func() error {
 		a.DB.Close()
 		return nil
 	})
-	a.Log.Debug(ctx, "Database initialized")
+	a.Log.Debug("Database initialized")
 
-	// config
-	a.Config, err = config.Init(a.DB)
+	// get config
+	cfg, err := database.ViewConfig(a.DB)
 	if err != nil {
-		return ctx, fmt.Errorf("failed to initialize config: %w", err)
+		return ctx, fmt.Errorf("failed to view config: %w", err)
 	}
-	a.Log.Debug(ctx, "Config initialized")
 
 	// calculate BaseURL
-	if a.Net.BaseURL, err = getBaseURL(a.Config); err != nil {
+	if a.Net.BaseURL, err = getBaseURL(cfg); err != nil {
 		return ctx, fmt.Errorf("failed to get base URL: %w", err)
 	}
 	a.Log.Debugf("Base URL: %s", a.Net.BaseURL)
 
 	// set log level
 	if initLogLevel != "debug" {
-		cfgLogLevel, err := config.Get[string](a.Config, "logLevel")
-		if err != nil {
-			return ctx, fmt.Errorf("failed to get log level from config: %w", err)
-		}
-		if err := a.Log.SetLevel(cfgLogLevel); err != nil {
+		if err := a.Log.SetLevel(cfg.LogLevel); err != nil {
 			return ctx, fmt.Errorf("failed to set log level: %w", err)
 		}
 	}
@@ -263,20 +252,12 @@ func firstNonEmpty(ss ...string) string {
 	return ""
 }
 
-func getBaseURL(c *config.Config) (string, error) {
-	port, err := config.Get[int](c, "port")
-	if err != nil {
-		return "", fmt.Errorf("failed to get port from config: %w", err)
-	}
-	host, err := config.Get[string](c, "host")
-	if err != nil {
-		return "", fmt.Errorf("failed to get host from config: %w", err)
-	}
-	proxyPort, err := config.Get[int](c, "proxyPort")
-	if err != nil {
-		return "", fmt.Errorf("failed to get proxyPort from config: %w", err)
-	}
+func getBaseURL(cfg *database.Configuration) (string, error) {
+	port := cfg.Port
+	host := cfg.Host
+	proxyPort := cfg.ProxyPort
 
+	// calculate that shit
 	host = x.Ternary(host != "", host, "localhost")
 	port = x.Ternary(proxyPort != 0, proxyPort, port)
 	hidePort := port == 80 || port == 443

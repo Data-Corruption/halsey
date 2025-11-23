@@ -3,7 +3,7 @@ module sprout
 go 1.24.0
 
 require (
-	github.com/Data-Corruption/lmdb-go v1.2.0
+	github.com/Data-Corruption/lmdb-go v1.2.1
 	github.com/Data-Corruption/stdx v0.4.2
 	github.com/disgoorg/disgo v0.19.0-rc.12
 	github.com/disgoorg/snowflake/v2 v2.0.3

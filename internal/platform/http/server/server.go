@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sprout/internal/app"
+	"sprout/internal/platform/database"
 	"sprout/pkg/sdnotify"
 
 	"github.com/Data-Corruption/stdx/xhttp"
@@ -22,6 +23,13 @@ func New(app *app.App, port int, handler http.Handler) error {
 			status := fmt.Sprintf("Listening on %s", app.Server.Addr())
 			if err := sdnotify.Ready(status); err != nil {
 				app.Log.Warnf("sd_notify READY failed: %v", err)
+			}
+			// increment listen counter
+			if err := database.UpdateConfig(app.DB, func(cfg *database.Configuration) error {
+				cfg.ListenCounter++
+				return nil
+			}); err != nil {
+				app.Log.Errorf("failed to increment listen counter: %v", err)
 			}
 		},
 		OnShutdown: func() {

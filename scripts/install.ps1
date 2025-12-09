@@ -9,9 +9,9 @@ param(
 # Template variables ----------------------------------------------------------
 
 $Owner   = "Data-Corruption"
-$Repo    = "sprout"
+$Repo    = "halsey"
 
-$AppName = "sprout"
+$AppName = "halsey"
 $Service = $true
 
 # -----------------------------------------------------------------------------

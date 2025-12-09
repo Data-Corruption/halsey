@@ -8,7 +8,10 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"sprout/internal/platform/auth"
 	"sprout/internal/platform/database"
+	"sprout/pkg/compressor"
+	"sprout/pkg/workqueue"
 	"sprout/pkg/x"
 	"sync"
 	"time"
@@ -16,6 +19,7 @@ import (
 	"github.com/Data-Corruption/lmdb-go/wrap"
 	"github.com/Data-Corruption/stdx/xhttp"
 	"github.com/Data-Corruption/stdx/xlog"
+	"github.com/disgoorg/disgo/bot"
 	"github.com/urfave/cli/v3"
 )
 
@@ -50,13 +54,23 @@ type App struct {
 	RuntimeDir    string // (e.g., XDG_RUNTIME_DIR/name, fallback to /tmp/name-USER)
 	ReleaseSource ReleaseSource
 
-	uOnce sync.Once // prep update only once before exiting
+	RedditQueue  *workqueue.Queue
+	RedGifsQueue *workqueue.Queue
+	YoutubeQueue *workqueue.Queue
+
+	AuthManager *auth.Manager
+
+	Compressor *compressor.Compressor
+
+	Client              *bot.Client
+	DiscordEventLimiter chan struct{} // limit concurrent event processing
 
 	// lifecycle management
 	cleanup       []CleanupFunc
 	cleanupOnce   sync.Once
 	postCleanup   CleanupFunc
 	postCleanupMu sync.Mutex
+	uOnce         sync.Once // prep update only once before exiting
 	// Inside commands, you can use <-a.Context.Done() to check for cancellation.
 	// You don't need to do this for the example service, the http server
 	// wrapper has its own signal listener.
@@ -64,7 +78,6 @@ type App struct {
 }
 
 func (a *App) Init(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-
 	// paths
 	var err error
 	if a.StorageDir, err = getStoragePath(a.Name); err != nil {
@@ -132,10 +145,19 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command) (context.Context, erro
 	// put logger into context
 	ctx = xlog.IntoContext(ctx, a.Log)
 
+	// limit concurrent event processing
+	a.DiscordEventLimiter = make(chan struct{}, 100)
+
 	// update checking
 	if err := a.startAutoChecker(cfg); err != nil {
 		return ctx, fmt.Errorf("failed to start auto checker: %w", err)
 	}
+
+	// compressor
+	a.Compressor = compressor.New(ctx)
+
+	// auth manager
+	a.AuthManager = auth.New(nil, nil)
 
 	a.Context = ctx
 	return ctx, nil

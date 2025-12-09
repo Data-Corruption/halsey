@@ -42,7 +42,7 @@ func main() {
 	rootCommand := &cli.Command{
 		Name:    name,
 		Version: version,
-		Usage:   "Sprout is a template for building Go services/apps.",
+		Usage:   "World's cutest Discord bot",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "log",

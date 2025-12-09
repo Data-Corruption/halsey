@@ -2,10 +2,10 @@
 
 # Template variables ----------------------------------------------------------
 
-APP_NAME="sprout"
+APP_NAME="halsey"
 
-REPO_URL="https://github.com/Data-Corruption/sprout.git"
-INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/Data-Corruption/sprout/main/scripts/install.sh"
+REPO_URL="https://github.com/Data-Corruption/halsey.git"
+INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/Data-Corruption/halsey/main/scripts/install.sh"
 
 SERVICE="true"
 
@@ -61,7 +61,18 @@ fi
 # - linting
 # - formatting
 # - tailwindcss
-# - etc.
+# - tests
+# - etc
+
+# tailwindcss / daisyui
+CSS_DIR="./internal/platform/http/server/router/css"
+[[ "${GITHUB_ACTIONS:-}" == "true" ]] && rm -f tailwindcss "$CSS_DIR/daisyui.mjs" "$CSS_DIR/daisyui-theme.mjs"
+[[ -f tailwindcss ]] || curl -sLo tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64
+[[ -f "$CSS_DIR/daisyui.mjs" ]] || curl -sLo "$CSS_DIR/daisyui.mjs" https://github.com/saadeghi/daisyui/releases/latest/download/daisyui.mjs
+[[ -f "$CSS_DIR/daisyui-theme.mjs" ]] || curl -sLo "$CSS_DIR/daisyui-theme.mjs" https://github.com/saadeghi/daisyui/releases/latest/download/daisyui-theme.mjs
+
+chmod +x tailwindcss
+./tailwindcss -i "$CSS_DIR/input.css" -o "$CSS_DIR/output.css" --minify
 
 # tests
 test_cmd=(go test -race ./...)

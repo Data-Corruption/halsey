@@ -221,6 +221,7 @@ func uPrep(version string, db *wrap.DB) error {
 	if err := database.UpdateConfig(db, func(cfg *database.Configuration) error {
 		cfg.UpdateAvailable = false
 		cfg.UpdateFollowup = version
+		cfg.ListenCounter = 0
 		return nil
 	}); err != nil {
 		return fmt.Errorf("failed to update updateAvailable in config: %w", err)

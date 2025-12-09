@@ -12,8 +12,20 @@ Database Layout:
 Config
     "version" -> version string of database schema (not app version)
 	"data" -> marshaled config struct
-Other DBIs
-    "<name>" -> <data>
+Archive
+	<message id> -> gzipped message
+Assets
+	<url> -> <hash.ext> (<hash of hashes>.tar for galleries, etc)
+Favorites
+	<source message id> -> ID of copy in fav channel
+Users
+	<id> -> marshaled User struct
+Channels
+	<id> -> marshaled Channel struct
+Guilds
+	<id> -> marshaled Guild struct
+Sessions
+	<token> -> marshaled Session struct
 
 */
 
@@ -22,13 +34,20 @@ const (
 	ConfigDataKey    = "data"
 
 	// DBI Names
-	ConfigDBIName = "config"
+	ConfigDBIName    = "config"
+	ArchiveDBIName   = "archive"
+	AssetsDBIName    = "assets"
+	FavoritesDBIName = "favorites"
+	UsersDBIName     = "users"
+	ChannelsDBIName  = "channels"
+	GuildsDBIName    = "guilds"
+	SessionsDBIName  = "sessions"
 	// Add more DBI names as needed, e.g., UserDBIName, SessionDBIName, etc. Also update the slice below to include them.
 	// My lmdb wrapper hard codes the max number of named dbis to 128.
 )
 
 // Slice for easy initialization. As stated above, if you add more DBIs you'll need to update this slice as well.
-var DBINameList = []string{ConfigDBIName}
+var DBINameList = []string{ConfigDBIName, ArchiveDBIName, AssetsDBIName, FavoritesDBIName, UsersDBIName, ChannelsDBIName, GuildsDBIName, SessionsDBIName}
 
 func New(directory string, logger *xlog.Logger) (*wrap.DB, error) {
 	// Initialize LMDB with the specified DBIs

@@ -2,7 +2,7 @@
 
 # Target: ~POSIX Linux x86_64/amd64, user-level install, optional systemd --user unit
 # Requires: curl, gzip, mktemp, install, sha256sum, sed, awk, (and systemd if SERVICE=true)
-# Example: curl -fsSL https://raw.githubusercontent.com/Data-Corruption/sprout/main/scripts/install.sh | sh
+# Example: curl -fsSL https://raw.githubusercontent.com/Data-Corruption/halsey/main/scripts/install.sh | sh
 #   (add '-s -- <VERSION>' after 'sh' for specific version/tag)
 
 set -u
@@ -10,22 +10,22 @@ umask 077
 
 # Template variables ----------------------------------------------------------
 REPO_OWNER="Data-Corruption"
-REPO_NAME="sprout"
+REPO_NAME="halsey"
 
-APP_NAME="sprout"
+APP_NAME="halsey"
 
 SERVICE="true"
-SERVICE_DESC="Sprout example daemon"
+SERVICE_DESC="World's cutest Discord bot"
 SERVICE_ARGS="service run"
 
 # print logo, i made this with https://manytools.org/hacker-tools/ascii-banner/
 cat << 'EOF'
- ______     ______   ______     ______     __  __     ______  
-/\  ___\   /\  == \ /\  == \   /\  __ \   /\ \/\ \   /\__  _\ 
-\ \___  \  \ \  _-/ \ \  __<   \ \ \/\ \  \ \ \_\ \  \/_/\ \/ 
- \/\_____\  \ \_\    \ \_\ \_\  \ \_____\  \ \_____\    \ \_\ 
-  \/_____/   \/_/     \/_/ /_/   \/_____/   \/_____/     \/_/ 
-                                                              
+ __  __     ______     __         ______     ______     __  __    
+/\ \_\ \   /\  __ \   /\ \       /\  ___\   /\  ___\   /\ \_\ \   
+\ \  __ \  \ \  __ \  \ \ \____  \ \___  \  \ \  __\   \ \____ \  
+ \ \_\ \_\  \ \_\ \_\  \ \_____\  \/\_____\  \ \_____\  \/\_____\ 
+  \/_/\/_/   \/_/\/_/   \/_____/   \/_____/   \/_____/   \/_____/ 
+                                                                  
 EOF
 
 # Constants -------------------------------------------------------------------

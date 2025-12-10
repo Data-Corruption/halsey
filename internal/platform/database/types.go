@@ -3,6 +3,7 @@ package database
 import (
 	"time"
 
+	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/snowflake/v2"
 )
 
@@ -47,31 +48,40 @@ type Configuration struct {
 
 type User struct {
 	IsAdmin      bool        `json:"isAdmin"`
-	Username     string      `json:"username"`     // cached username
+	Username     string      `json:"username"`
+	AvatarURL    *string     `json:"avatarURL"`    // *string marshals as {null | "" | "x"}
+	BannerURL    *string     `json:"bannerURL"`    // *string marshals as {null | "" | "x"}
 	BackupOptOut bool        `json:"backupOptOut"` // skips backing up messages from this user
 	AutoExpand   DomainBools `json:"autoExpand"`
 }
 
+type ChannelBackup struct {
+	Enabled bool         `json:"backupEnabled"` // overruled if this is the bot channel
+	Ceil    snowflake.ID `json:"backupCeil"`
+	Head    snowflake.ID `json:"backupHead"`
+	Tail    snowflake.ID `json:"backupTail"`
+}
+
 type Channel struct {
-	GuildID snowflake.ID `json:"guildID"`
-	Backup  struct {
-		Enabled bool         `json:"backupEnabled"`
-		Ceil    snowflake.ID `json:"backupCeil"`
-		Head    snowflake.ID `json:"backupHead"`
-		Tail    snowflake.ID `json:"backupTail"`
-	} `json:"backup"`
+	GuildID snowflake.ID        `json:"guildID"`
+	Name    string              `json:"name"`
+	Type    discord.ChannelType `json:"type"`
+	Backup  ChannelBackup       `json:"backup"`
+	Deleted bool                `json:"deleted"` // for knowing to skip backup
+}
+
+type GuildBackup struct {
+	Enabled bool   `json:"enabled"`
+	RunID   string `json:"runID"` // for knowing if a backup is in progress, synchronizing the channels debugging, etc.
 }
 
 type Guild struct {
-	Name         string       `json:"name"`
-	FavChannelID snowflake.ID `json:"favoriteChannelID"`
-	SynctubeURL  string       `json:"synctubeURL"`
-	PremiumTier  int          `json:"premiumTier"` // cached boost level
-	AntiRot      bool         `json:"antiRot"`
-	Backup       struct {
-		Enabled bool   `json:"enabled"`
-		RunID   string `json:"runID"` // for knowing if a backup is in progress, debugging, etc.
-	} `json:"backup"`
+	Name         string              `json:"name"`
+	FavChannelID snowflake.ID        `json:"favoriteChannelID"`
+	SynctubeURL  string              `json:"synctubeURL"`
+	PremiumTier  discord.PremiumTier `json:"premiumTier"`
+	AntiRot      bool                `json:"antiRot"`
+	Backup       GuildBackup         `json:"backup"`
 }
 
 type Session struct {

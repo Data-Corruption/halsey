@@ -35,60 +35,172 @@ func TxnGetAndUnmarshal(txn *lmdb.Txn, dbi lmdb.DBI, key []byte, value any) erro
 	return nil
 }
 
-// ViewConfig retrieves a copy of the current configuration from the database.
-func ViewConfig(db *wrap.DB) (*Configuration, error) {
-	data, err := db.Read(ConfigDBIName, []byte(ConfigDataKey))
+// --- Generic Helpers ---
+
+// View retrieves a copy of a value from the database.
+// lmdb.IsNotFound(err) will be true if the key was not found.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func View[T any](db *wrap.DB, dbiName string, key []byte) (*T, error) {
+	data, err := db.Read(dbiName, key)
 	if err != nil {
 		return nil, err
 	}
-	var cfg Configuration
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	var value T
+	if err := json.Unmarshal(data, &value); err != nil {
 		return nil, err
 	}
-	return &cfg, nil
+	return &value, nil
+}
+
+// Upsert updates a value in the database using the provided update function,
+// creating it with defaultFn if it does not exist.
+// Returns true if the value was created.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func Upsert[T any](db *wrap.DB, dbiName string, key []byte, defaultFn func() T, updateFn func(*T) error) (bool, error) {
+	created := false
+
+	if err := db.Update(func(txn *lmdb.Txn) error {
+		dbi, ok := db.GetDBis()[dbiName]
+		if !ok {
+			return fmt.Errorf("DBI %q not found", dbiName)
+		}
+
+		var value T
+		err := TxnGetAndUnmarshal(txn, dbi, key, &value)
+		if err != nil {
+			if !lmdb.IsNotFound(err) {
+				return fmt.Errorf("failed to get value: %w", err)
+			}
+			created = true
+			value = defaultFn()
+		}
+
+		if err := updateFn(&value); err != nil {
+			return fmt.Errorf("update function failed: %w", err)
+		}
+
+		if err := TxnMarshalAndPut(txn, dbi, key, value); err != nil {
+			return fmt.Errorf("failed to update value: %w", err)
+		}
+
+		return nil
+	}); err != nil {
+		return false, err
+	}
+
+	return created, nil
+}
+
+// ForEachAction specifies what to do with an entry after the callback.
+type ForEachAction int
+
+const (
+	Keep   ForEachAction = iota // no changes to entry
+	Update                      // re-marshal and store entry
+	Delete                      // remove entry
+)
+
+// ForEach iterates over all entries in a DBI, applying the callback to each.
+// The callback receives the key and a pointer to the unmarshaled value.
+// Return (Keep, nil) to leave unchanged, (Update, nil) to save changes, (Delete, nil) to remove.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func ForEach[T any](db *wrap.DB, dbiName string, callback func(key []byte, value *T) (ForEachAction, error)) error {
+	return db.Update(func(txn *lmdb.Txn) error {
+		dbi, ok := db.GetDBis()[dbiName]
+		if !ok {
+			return fmt.Errorf("DBI %q not found", dbiName)
+		}
+
+		cursor, err := txn.OpenCursor(dbi)
+		if err != nil {
+			return fmt.Errorf("failed to create cursor: %w", err)
+		}
+		defer cursor.Close()
+
+		for {
+			k, v, err := cursor.Get(nil, nil, lmdb.Next)
+			if lmdb.IsNotFound(err) {
+				break // no more entries
+			}
+			if err != nil {
+				return fmt.Errorf("failed to get next entry: %w", err)
+			}
+
+			var value T
+			if err := json.Unmarshal(v, &value); err != nil {
+				return fmt.Errorf("failed to unmarshal entry: %w", err)
+			}
+
+			action, err := callback(k, &value)
+			if err != nil {
+				return fmt.Errorf("callback failed: %w", err)
+			}
+
+			switch action {
+			case Update:
+				if err := TxnMarshalAndPut(txn, dbi, k, value); err != nil {
+					return fmt.Errorf("failed to update entry: %w", err)
+				}
+			case Delete:
+				if err := cursor.Del(0); err != nil {
+					return fmt.Errorf("failed to delete entry: %w", err)
+				}
+			}
+		}
+		return nil
+	})
+}
+
+// --- Type-Specific Wrappers ---
+
+// ViewConfig retrieves a copy of the current configuration from the database.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func ViewConfig(db *wrap.DB) (*Configuration, error) {
+	return View[Configuration](db, ConfigDBIName, []byte(ConfigDataKey))
+}
+
+func defaultConfig() Configuration {
+	return Configuration{
+		LogLevel:            "WARN",
+		Port:                8080,
+		Host:                "localhost",
+		UpdateNotifications: true,
+		LastUpdateCheck:     time.Now(),
+	}
 }
 
 // UpdateConfig updates the configuration in the database using the provided update function.
 //
 // WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
 func UpdateConfig(db *wrap.DB, updateFunc func(cfg *Configuration) error) error {
-	return db.Update(func(txn *lmdb.Txn) error {
-		dbi, ok := db.GetDBis()[ConfigDBIName]
-		if !ok {
-			return fmt.Errorf("DBI %q not found", ConfigDBIName)
-		}
-
-		var cfg Configuration
-		if err := TxnGetAndUnmarshal(txn, dbi, []byte(ConfigDataKey), &cfg); err != nil {
-			return fmt.Errorf("failed to get config: %w", err)
-		}
-
-		if err := updateFunc(&cfg); err != nil {
-			return fmt.Errorf("update function failed: %w", err)
-		}
-
-		if err := TxnMarshalAndPut(txn, dbi, []byte(ConfigDataKey), cfg); err != nil {
-			return fmt.Errorf("failed to update config: %w", err)
-		}
-
-		return nil
-	})
+	_, err := Upsert(db, ConfigDBIName, []byte(ConfigDataKey), defaultConfig, updateFunc)
+	return err
 }
 
 // ViewUser retrieves a copy of the given user from the database.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
 func ViewUser(db *wrap.DB, userID snowflake.ID) (*User, error) {
 	if userID == 0 {
 		return nil, fmt.Errorf("invalid user ID")
 	}
-	data, err := db.Read(UsersDBIName, []byte(userID.String()))
-	if err != nil {
-		return nil, err
+	return View[User](db, UsersDBIName, []byte(userID.String()))
+}
+
+// defaultUser returns a User with default settings.
+func defaultUser() User {
+	return User{
+		AutoExpand: DomainBools{
+			Reddit:        true,
+			RedGifs:       true,
+			YouTube:       true,
+			YouTubeShorts: true,
+		},
 	}
-	var user User
-	if err := json.Unmarshal(data, &user); err != nil {
-		return nil, err
-	}
-	return &user, nil
 }
 
 // UpsertUser updates the given user in the database using the provided
@@ -100,84 +212,89 @@ func UpsertUser(db *wrap.DB, userID snowflake.ID, updateFunc func(user *User) er
 	if userID == 0 {
 		return false, fmt.Errorf("invalid user ID")
 	}
+	return Upsert(db, UsersDBIName, []byte(userID.String()), defaultUser, updateFunc)
+}
 
-	created := false
-
-	if err := db.Update(func(txn *lmdb.Txn) error {
-		dbi, ok := db.GetDBis()[UsersDBIName]
-		if !ok {
-			return fmt.Errorf("DBI %q not found", UsersDBIName)
-		}
-
-		var user User
-		err := TxnGetAndUnmarshal(txn, dbi, []byte(userID.String()), &user)
-		if err != nil {
-			if !lmdb.IsNotFound(err) {
-				return fmt.Errorf("failed to get user: %w", err)
-			}
-			created = true
-			// initialize default user settings
-			user = User{}
-			user.AutoExpand.Reddit = true
-			user.AutoExpand.RedGifs = true
-			user.AutoExpand.YouTube = true
-			user.AutoExpand.YouTubeShorts = true
-		}
-
-		if err := updateFunc(&user); err != nil {
-			return fmt.Errorf("update function failed: %w", err)
-		}
-
-		if err := TxnMarshalAndPut(txn, dbi, []byte(userID.String()), user); err != nil {
-			return fmt.Errorf("failed to update user: %w", err)
-		}
-
-		return nil
-	}); err != nil {
-		return false, err
+// ViewChannel retrieves a copy of the given channel from the database.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func ViewChannel(db *wrap.DB, channelID snowflake.ID) (*Channel, error) {
+	if channelID == 0 {
+		return nil, fmt.Errorf("invalid channel ID")
 	}
+	return View[Channel](db, ChannelsDBIName, []byte(channelID.String()))
+}
 
-	return created, nil
+func defaultChannel() Channel {
+	return Channel{
+		Backup: ChannelBackup{
+			Enabled: true,
+		},
+	}
+}
+
+// UpsertChannel updates the given channel in the database using the provided
+// update function, creating the channel if it does not already exist.
+// It returns a boolean indicating whether the channel was created.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func UpsertChannel(db *wrap.DB, channelID snowflake.ID, updateFunc func(channel *Channel) error) (bool, error) {
+	if channelID == 0 {
+		return false, fmt.Errorf("invalid channel ID")
+	}
+	return Upsert(db, ChannelsDBIName, []byte(channelID.String()), defaultChannel, updateFunc)
+}
+
+// UpdateChannels updates all the channels in the database with the provided update function.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func UpdateChannels(db *wrap.DB, updateFunc func(id snowflake.ID, channel *Channel) error) error {
+	return ForEach(db, ChannelsDBIName, func(key []byte, channel *Channel) (ForEachAction, error) {
+		id, err := snowflake.Parse(string(key))
+		if err != nil {
+			return Keep, fmt.Errorf("failed to parse channel ID: %w", err)
+		}
+		if err := updateFunc(id, channel); err != nil {
+			return Keep, err
+		}
+		return Update, nil
+	})
+}
+
+// ViewGuild retrieves a copy of the given guild from the database.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func ViewGuild(db *wrap.DB, guildID snowflake.ID) (*Guild, error) {
+	if guildID == 0 {
+		return nil, fmt.Errorf("invalid guild ID")
+	}
+	return View[Guild](db, GuildsDBIName, []byte(guildID.String()))
+}
+
+func defaultGuild() Guild {
+	return Guild{}
+}
+
+// UpsertGuild updates the given guild in the database using the provided
+// update function, creating the guild if it does not already exist.
+// It returns a boolean indicating whether the guild was created.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func UpsertGuild(db *wrap.DB, guildID snowflake.ID, updateFunc func(guild *Guild) error) (bool, error) {
+	if guildID == 0 {
+		return false, fmt.Errorf("invalid guild ID")
+	}
+	return Upsert(db, GuildsDBIName, []byte(guildID.String()), defaultGuild, updateFunc)
 }
 
 // CleanSessions removes expired sessions from the database.
 //
 // WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
 func CleanSessions(db *wrap.DB) error {
-	return db.Update(func(txn *lmdb.Txn) error {
-		dbi, ok := db.GetDBis()[SessionsDBIName]
-		if !ok {
-			return fmt.Errorf("DBI %q not found", SessionsDBIName)
+	return ForEach(db, SessionsDBIName, func(_ []byte, session *Session) (ForEachAction, error) {
+		if session.Expiration.Before(time.Now()) {
+			return Delete, nil
 		}
-
-		cursor, err := txn.OpenCursor(dbi)
-		if err != nil {
-			return fmt.Errorf("failed to create cursor: %w", err)
-		}
-		defer cursor.Close()
-
-		// iterate through all sessions
-		for {
-			_, v, err := cursor.Get(nil, nil, lmdb.Next)
-			if lmdb.IsNotFound(err) {
-				break // no more entries
-			}
-			if err != nil {
-				return fmt.Errorf("failed to get next session: %w", err)
-			}
-
-			var session Session
-			if err := json.Unmarshal(v, &session); err != nil {
-				return fmt.Errorf("failed to unmarshal session: %w", err)
-			}
-
-			if session.Expiration.Before(time.Now()) {
-				if err := cursor.Del(0); err != nil {
-					return fmt.Errorf("failed to delete session: %w", err)
-				}
-			}
-		}
-
-		return nil
+		return Keep, nil
 	})
 }

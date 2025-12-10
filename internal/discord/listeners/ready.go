@@ -9,5 +9,5 @@ import (
 
 func OnReady(a *app.App, event *events.Ready) {
 	fmt.Println("Halsey is now running. Press Ctrl+C to exit.")
-	a.Log.Info("Halsey is now running.")
+	a.Log.Info("Discord client is ready.")
 }

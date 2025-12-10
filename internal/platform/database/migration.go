@@ -3,7 +3,6 @@ package database
 import (
 	"fmt"
 	"sprout/pkg/migrator"
-	"time"
 
 	"github.com/Data-Corruption/lmdb-go/lmdb"
 	"github.com/Data-Corruption/lmdb-go/wrap"
@@ -23,13 +22,7 @@ func Migrate(db *wrap.DB, logger *xlog.Logger) error {
 		}
 
 		// Create Config with default values
-		cfg := Configuration{
-			LogLevel:            "WARN",
-			Port:                8080,
-			Host:                "localhost",
-			UpdateNotifications: true,
-			LastUpdateCheck:     time.Now(),
-		}
+		cfg := defaultConfig()
 
 		// Store config
 		if err := TxnMarshalAndPut(txn, cfgDBI, []byte(ConfigDataKey), cfg); err != nil {

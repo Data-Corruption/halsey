@@ -63,6 +63,10 @@ func New(ttl *time.Duration, limiter *rate.Limiter) *Manager {
 	return m
 }
 
+func (m *Manager) TTL() time.Duration {
+	return m.ttl
+}
+
 // NewParamSession generates a new param session for the given user.
 // It errors if the generated token collides with an existing one.
 // It also cleans up expired param sessions.

@@ -47,7 +47,7 @@ var About = register(BotCommand{
 		}
 		msgBuilder.AddComponents(
 			discord.NewTextDisplay("Hello, I'm Halsey.\nYour digital assistant, ultimate archivist, and official hoarder of human weirdness.\n\n"+
-				"Posts get taken down, links rot, and one day even Discord itself could explode :cry: but don't worry... chats, links, etc - if you send it, I'll save it. Years of precious memories, toy cars, singular wipes, etc, will all live forever, immortalized by yours truly. Safely encrypted in my vault of cherished human data :black_heart:",
+				"Posts get taken down, links rot, and one day even Discord itself could explode :cry: but don't worry... chats, links, etc - if you send it, I'll save it. Years of precious memories will all live forever, immortalized by yours truly. Safely encrypted in my vault of cherished human data :black_heart:",
 			),
 			discord.NewSeparator(discord.SeparatorSpacingSizeLarge),
 			discord.NewTextDisplay(":sparkles: Fun facts about me:\n"+

@@ -32,6 +32,7 @@ var Settings = register(BotCommand{
 		url := fmt.Sprintf("%s/login?%s=%s", a.BaseURL, auth.ParamName, token)
 		event.CreateMessage(discord.NewMessageCreateBuilder().
 			AddActionRow(discord.NewLinkButton("Manage Settings", url)).
+			SetContent("This session will expire in " + a.AuthManager.TTL().String()).
 			SetEphemeral(true).
 			Build())
 		return nil

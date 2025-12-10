@@ -45,10 +45,10 @@ func settingsRoutes(a *app.App, r *chi.Mux) {
 
 			data := map[string]any{
 				"CSS":             css.Path(),
-				"Favicon":         template.URL(`data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50%' y='.9em' font-size='90' text-anchor='middle'>🌱</text></svg>`),
-				"Title":           "sprout",
+				"Favicon":         template.URL(`data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50%' y='.9em' font-size='90' text-anchor='middle'>🖤</text></svg>`),
+				"Title":           "Settings - Halsey",
 				"Version":         a.Version,
-				"UpdateAvailable": cfg.UpdateAvailable,
+				"UpdateAvailable": cfg.UpdateAvailable && (a.Version != "vX.X.X"),
 				"User":            session.User,
 			}
 			if err := tmpl.Execute(w, data); err != nil {

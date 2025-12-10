@@ -8,6 +8,9 @@ import (
 )
 
 func OnGuildChannelCreate(a *app.App, event *events.GuildChannelCreate) {
+	a.DiscordWG.Add(1) // track for graceful shutdown
+	defer a.DiscordWG.Done()
+
 	// upsert channel
 	if _, err := database.UpsertChannel(a.DB, event.Channel.ID(), func(c *database.Channel) error {
 		c.GuildID = event.Channel.GuildID()

@@ -8,7 +8,8 @@ import (
 
 // Component struct for components. See removeFavorite.go for an example.
 type BotComponent struct {
-	ID      string // custom ID prefix to identify the component
+	ID string // custom ID prefix to identify the component
+	// Supports graceful shutdown. If you start any goroutines that outlive the handler, you must add them to `a.DiscordWG.Add(1)` and call `a.DiscordWG.Done()` when they are done.
 	Handler func(a *app.App, event *events.ComponentInteractionCreate, idParts []string) error
 }
 

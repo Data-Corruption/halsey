@@ -72,7 +72,15 @@ CSS_DIR="./internal/platform/http/server/router/css"
 [[ -f "$CSS_DIR/daisyui-theme.mjs" ]] || curl -sLo "$CSS_DIR/daisyui-theme.mjs" https://github.com/saadeghi/daisyui/releases/latest/download/daisyui-theme.mjs
 
 chmod +x tailwindcss
-./tailwindcss -i "$CSS_DIR/input.css" -o "$CSS_DIR/output.css" --minify
+tailwind_cmd=(./tailwindcss -i "$CSS_DIR/input.css" -o "$CSS_DIR/output.css" --minify)
+if tailwind_output="$("${tailwind_cmd[@]}" 2>&1)"; then
+  printf '🟢 Tailwind CSS built\n'
+else
+  status=$?
+  printf '\n🔴 Tailwind CSS failed:\n'
+  printf '%s\n' "$tailwind_output"
+  exit $status
+fi
 
 # tests
 test_cmd=(go test -race ./...)

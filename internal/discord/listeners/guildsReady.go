@@ -13,6 +13,9 @@ import (
 )
 
 func OnGuildsReady(a *app.App, event *events.GuildsReady, registerCommands bool) {
+	a.DiscordWG.Add(1) // track for graceful shutdown
+	defer a.DiscordWG.Done()
+
 	// ensure all guilds are in the database / updated
 	if a.Client.Caches.GuildCache().Len() == 0 {
 		a.Log.Warn("guild cache is empty")

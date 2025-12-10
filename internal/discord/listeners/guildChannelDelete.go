@@ -8,6 +8,9 @@ import (
 )
 
 func OnGuildChannelDelete(a *app.App, event *events.GuildChannelDelete) {
+	a.DiscordWG.Add(1) // track for graceful shutdown
+	defer a.DiscordWG.Done()
+
 	// set deleted to true for channel in DB
 	if _, err := database.UpsertChannel(a.DB, event.ChannelID, func(c *database.Channel) error {
 		c.Deleted = true

@@ -7,15 +7,19 @@ import (
 )
 
 func OnGuildMessageCreate(a *app.App, event *events.GuildMessageCreate) {
+	a.DiscordWG.Add(1) // track for graceful shutdown
+
 	// acquire semaphore
 	select {
 	case a.DiscordEventLimiter <- struct{}{}:
 	default:
+		a.DiscordWG.Done()
 		a.Log.Warn("Event limiter reached, dropping guild message create")
 		return
 	}
 
 	go func() {
+		defer a.DiscordWG.Done()
 		defer func() { <-a.DiscordEventLimiter }()
 
 		if event.Message.Author.Bot {

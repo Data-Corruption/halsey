@@ -10,10 +10,13 @@ import (
 )
 
 func OnCommandInteraction(a *app.App, event *events.ApplicationCommandInteractionCreate) {
+	a.DiscordWG.Add(1) // track for graceful shutdown
+
 	// acquire semaphore
 	select {
 	case a.DiscordEventLimiter <- struct{}{}:
 	default:
+		a.DiscordWG.Done()
 		a.Log.Warn("Event limiter reached, dropping command interaction")
 		event.CreateMessage(discord.NewMessageCreateBuilder().
 			SetContent("I'm too busy right now! Please try again in a moment.").
@@ -23,6 +26,7 @@ func OnCommandInteraction(a *app.App, event *events.ApplicationCommandInteractio
 	}
 
 	go func() {
+		defer a.DiscordWG.Done()
 		defer func() { <-a.DiscordEventLimiter }()
 
 		// get command

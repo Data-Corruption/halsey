@@ -8,6 +8,9 @@ import (
 )
 
 func OnGuildMemberJoin(a *app.App, event *events.GuildMemberJoin) {
+	a.DiscordWG.Add(1) // track for graceful shutdown
+	defer a.DiscordWG.Done()
+
 	// upsert user
 	if _, err := database.UpsertUser(a.DB, event.Member.User.ID, func(user *database.User) error {
 		user.Username = event.Member.User.Username

@@ -8,7 +8,8 @@ import (
 )
 
 func OnGuildUpdate(a *app.App, event *events.GuildUpdate) {
-	// not gonna bother limiting this
+	a.DiscordWG.Add(1) // track for graceful shutdown
+	defer a.DiscordWG.Done()
 
 	if _, err := database.UpsertGuild(a.DB, event.Guild.ID, func(g *database.Guild) error {
 		g.Name = event.Guild.Name

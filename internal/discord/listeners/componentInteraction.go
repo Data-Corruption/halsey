@@ -11,10 +11,13 @@ import (
 )
 
 func OnComponentInteraction(a *app.App, event *events.ComponentInteractionCreate) {
+	a.DiscordWG.Add(1) // track for graceful shutdown
+
 	// acquire semaphore
 	select {
 	case a.DiscordEventLimiter <- struct{}{}:
 	default:
+		a.DiscordWG.Done()
 		a.Log.Warn("Event limiter reached, dropping component interaction")
 		event.CreateMessage(discord.NewMessageCreateBuilder().
 			SetContent("I'm too busy right now! Please try again in a moment.").
@@ -24,6 +27,7 @@ func OnComponentInteraction(a *app.App, event *events.ComponentInteractionCreate
 	}
 
 	go func() {
+		defer a.DiscordWG.Done()
 		defer func() { <-a.DiscordEventLimiter }()
 
 		// split event.Data.CustomID() on '.', prefix is what we switch on. Could also not have a second part.

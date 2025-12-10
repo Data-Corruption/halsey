@@ -99,9 +99,24 @@ var Service = register(func(a *app.App) *cli.Command {
 					// if created the client without issue, start it
 					if a.Client != nil {
 						a.AddCleanup(func() error {
+							// wait for Discord work to finish (with timeout)
+							done := make(chan struct{})
+							go func() {
+								a.DiscordWG.Wait()
+								close(done)
+							}()
+							select {
+							case <-done:
+								a.Log.Debug("All Discord work finished")
+							case <-time.After(botShutdownTimeout):
+								a.Log.Warn("Timeout waiting for Discord work to finish")
+							}
+
+							// close bot
 							ctx, cancel := context.WithTimeout(context.Background(), botShutdownTimeout)
 							defer cancel()
 							a.Client.Close(ctx)
+
 							return nil
 						})
 						if err := a.Client.OpenGateway(context.TODO()); err != nil {
@@ -128,11 +143,10 @@ func createClient(a *app.App, token string, registerCommands bool) error {
 	var err error
 	a.Client, err = disgo.New(token,
 		bot.WithGatewayConfigOpts(
-			gateway.WithIntents(
+			gateway.WithIntents( // For bots in less than 100 guilds, skip gateway.IntentMessageContent, it's not needed
 				gateway.IntentGuilds|
 					gateway.IntentGuildMessages|
-					gateway.IntentGuildMembers|
-					gateway.IntentMessageContent, // includes attachments, etc. i think
+					gateway.IntentGuildMembers,
 			),
 		),
 		bot.WithCacheConfigOpts(

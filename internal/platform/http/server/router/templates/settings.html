@@ -107,6 +107,20 @@
                 transform: translateY(0);
             }
         }
+
+        .user-avatar {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .user-avatar img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid var(--border-color);
+            object-fit: cover;
+        }
     </style>
 </head>
 
@@ -115,8 +129,14 @@
         <h1>{{ .Title }}</h1>
         <span class="version">{{ .Version }}</span>
 
+        {{ if .AvatarURL }}
+        <div class="user-avatar">
+            <img src="{{ .AvatarURL }}" alt="{{ .User.Username }}">
+        </div>
+        {{ end }}
+
         <div class="status">
-            <p style="color: var(--secondary-text);">Hello World</p>
+            <p style="color: var(--secondary-text);">Hello, {{ .User.Username }}</p>
         </div>
 
         {{ if .UpdateAvailable }}

@@ -68,27 +68,41 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, registerCommands bool)
 		a.Log.Errorf("failed to update channels in database: %s", err)
 	}
 
-	// ensure all users are in the database
-	if a.Client.Caches.MemberCache().Len() == 0 {
-		a.Log.Warn("member cache is empty")
-	}
+	// ensure all users are in the database (fetch via REST since cache only has event-based members)
 	foundUsers := []snowflake.ID{}
-	for _, member := range a.Client.Caches.MemberCache().All() {
-		if slices.Contains(foundUsers, member.User.ID) || member.User.Bot {
-			continue
-		}
-		foundUsers = append(foundUsers, member.User.ID)
-		if created, err := database.UpsertUser(a.DB, member.User.ID, func(u *database.User) error {
-			u.Username = member.User.Username
-			u.AvatarURL = member.User.AvatarURL()
-			u.BannerURL = member.User.BannerURL()
-			return nil
-		}); err != nil {
-			a.Log.Errorf("failed to upsert user %s: %s", member.User.ID, err)
-		} else if created {
-			a.Log.Infof("New user detected: %s (%s), adding to database...", member.User.Username, member.User.ID)
-		} else {
-			a.Log.Debugf("User %s (%s) registered successfully", member.User.Username, member.User.ID)
+	for guild := range a.Client.Caches.GuildCache().All() {
+		var after snowflake.ID
+		for {
+			members, err := a.Client.Rest.GetMembers(guild.ID, 1000, after)
+			if err != nil {
+				a.Log.Errorf("failed to fetch members for guild %s: %s", guild.ID, err)
+				break
+			}
+			if len(members) == 0 {
+				break
+			}
+			for _, member := range members {
+				if slices.Contains(foundUsers, member.User.ID) || member.User.Bot {
+					continue
+				}
+				foundUsers = append(foundUsers, member.User.ID)
+				if created, err := database.UpsertUser(a.DB, member.User.ID, func(u *database.User) error {
+					u.Username = member.User.Username
+					u.AvatarURL = member.User.AvatarURL()
+					return nil
+				}); err != nil {
+					a.Log.Errorf("failed to upsert user %s: %s", member.User.ID, err)
+				} else if created {
+					a.Log.Infof("New user detected: %s (%s), adding to database...", member.User.Username, member.User.ID)
+				} else {
+					a.Log.Debugf("User %s (%s) registered successfully", member.User.Username, member.User.ID)
+				}
+			}
+			after = members[len(members)-1].User.ID
+			if len(members) < 1000 {
+				break // no more pages
+			}
+			time.Sleep(100 * time.Millisecond) // rate limit courtesy
 		}
 	}
 

@@ -13,7 +13,8 @@ type BotCommand struct {
 	RequireAdmin bool // if true, only admins can use this command
 	FilterBots   bool // if true, bots cannot use this command
 	Data         discord.ApplicationCommandCreate
-	Handler      func(a *app.App, event *events.ApplicationCommandInteractionCreate) error
+	// Supports graceful shutdown. If you start any goroutines that outlive the handler, you must add them to `a.DiscordWG.Add(1)` and call `a.DiscordWG.Done()` when they are done.
+	Handler func(a *app.App, event *events.ApplicationCommandInteractionCreate) error
 }
 
 var Registry []BotCommand

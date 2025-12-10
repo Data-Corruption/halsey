@@ -50,7 +50,6 @@ type User struct {
 	IsAdmin      bool        `json:"isAdmin"`
 	Username     string      `json:"username"`
 	AvatarURL    *string     `json:"avatarURL"`    // *string marshals as {null | "" | "x"}
-	BannerURL    *string     `json:"bannerURL"`    // *string marshals as {null | "" | "x"}
 	BackupOptOut bool        `json:"backupOptOut"` // skips backing up messages from this user
 	AutoExpand   DomainBools `json:"autoExpand"`
 }

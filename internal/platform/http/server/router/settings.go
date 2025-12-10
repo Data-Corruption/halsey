@@ -43,6 +43,12 @@ func settingsRoutes(a *app.App, r *chi.Mux) {
 				return
 			}
 
+			// safely dereference avatar URLs
+			var avatarURL string
+			if session.User.AvatarURL != nil {
+				avatarURL = *session.User.AvatarURL
+			}
+
 			data := map[string]any{
 				"CSS":             css.Path(),
 				"Favicon":         template.URL(`data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50%' y='.9em' font-size='90' text-anchor='middle'>🖤</text></svg>`),
@@ -50,6 +56,7 @@ func settingsRoutes(a *app.App, r *chi.Mux) {
 				"Version":         a.Version,
 				"UpdateAvailable": cfg.UpdateAvailable && (a.Version != "vX.X.X"),
 				"User":            session.User,
+				"AvatarURL":       avatarURL,
 			}
 			if err := tmpl.Execute(w, data); err != nil {
 				xhttp.Error(r.Context(), w, err)

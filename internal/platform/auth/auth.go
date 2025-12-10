@@ -257,15 +257,16 @@ func (m *Manager) Cookie(db *wrap.DB) func(http.Handler) http.Handler {
 				}
 			}
 
-			// handle err response
-			if err != nil {
+			if err != nil { // err
 				xhttp.Error(r.Context(), w, err)
 				return
 			}
-
-			// handle missing / expired session
-			if (session == (database.Session{})) || time.Now().After(session.Expiration) {
+			if session == (database.Session{}) { // missing session
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if time.Now().After(session.Expiration) { // expired session
+				http.Error(w, "Session expired, please generate a new one", http.StatusUnauthorized)
 				return
 			}
 

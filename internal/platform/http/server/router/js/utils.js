@@ -129,9 +129,11 @@ function pollForRestart(updateRequested = false) {
             .then(data => {
                 if (data.restarted) {
                     if (updateRequested && !data.updated) {
+                        unblockClicks();
                         alert('Restart completed, but the update did not apply. You may already be on the latest version, or the update failed.');
+                    } else {
+                        window.location.reload();
                     }
-                    window.location.reload();
                 } else {
                     setTimeout(check, pollInterval);
                 }

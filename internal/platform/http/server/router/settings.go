@@ -10,6 +10,8 @@ import (
 	"sprout/internal/platform/auth"
 	"sprout/internal/platform/database"
 	"sprout/internal/platform/http/server/router/css"
+	"sprout/internal/platform/http/server/router/images"
+	"sprout/internal/platform/http/server/router/js"
 
 	"github.com/Data-Corruption/stdx/xhttp"
 	"github.com/go-chi/chi/v5"
@@ -20,9 +22,10 @@ var tmplFS embed.FS
 
 var tmpl = template.Must(template.ParseFS(tmplFS, "templates/settings.html"))
 
-// UpdateRestartBody is the body of POST /settings/update and /settings/restart requests.
-type UpdateRestartBody struct {
+// RestartBody is the body of POST /settings/restart requests.
+type RestartBody struct {
 	RegisterCommands bool `json:"register_commands"`
+	Update           bool `json:"update"`
 }
 
 func settingsRoutes(a *app.App, r *chi.Mux) {
@@ -43,20 +46,21 @@ func settingsRoutes(a *app.App, r *chi.Mux) {
 				return
 			}
 
-			// safely dereference avatar URLs
-			var avatarURL string
-			if session.User.AvatarURL != nil {
-				avatarURL = *session.User.AvatarURL
-			}
-
 			data := map[string]any{
 				"CSS":             css.Path(),
+				"JS":              js.Path(),
+				"Background":      images.Next(),
 				"Favicon":         template.URL(`data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50%' y='.9em' font-size='90' text-anchor='middle'>🖤</text></svg>`),
 				"Title":           "Settings - Halsey",
 				"Version":         a.Version,
 				"UpdateAvailable": cfg.UpdateAvailable && (a.Version != "vX.X.X"),
 				"User":            session.User,
-				"AvatarURL":       avatarURL,
+				"BioImageURL":     cfg.BioImageURL,
+				// Admin config fields
+				"LogLevel":  cfg.LogLevel,
+				"Port":      cfg.Port,
+				"Host":      cfg.Host,
+				"ProxyPort": cfg.ProxyPort,
 			}
 			if err := tmpl.Execute(w, data); err != nil {
 				xhttp.Error(r.Context(), w, err)
@@ -89,15 +93,11 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 			})
 		})
 
-		admin.Post("/update", func(w http.ResponseWriter, r *http.Request) {
+		admin.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
 			defer r.Body.Close()
-			if a.Version == "vX.X.X" {
-				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 400, Msg: "bad request", Err: fmt.Errorf("this is a dev build, skipping update")})
-				return
-			}
 
 			// parse body
-			var body UpdateRestartBody
+			var body RestartBody
 			dec := json.NewDecoder(r.Body)
 			dec.DisallowUnknownFields() // surfaces unexpected input early
 			if err := dec.Decode(&body); err != nil {
@@ -109,9 +109,16 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 				return
 			}
 
+			// should we update?
+			var doUpdate bool
+			if body.Update && a.Version != "vX.X.X" {
+				doUpdate = true
+			}
+
 			// update restart context in config
 			if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
 				cfg.RestartCtx.RegisterCmds = body.RegisterCommands
+				cfg.RestartCtx.ListenCounter = 0
 				return nil
 			}); err != nil {
 				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to update config", Err: err})
@@ -120,73 +127,30 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 
 			w.WriteHeader(http.StatusAccepted)
 
-			if err := a.DetachUpdate(); err != nil {
-				a.Log.Errorf("failed to detach update: %v", err)
+			// do the restart
+			if doUpdate {
+				if err := a.DetachUpdate(); err != nil {
+					a.Log.Errorf("failed to detach update: %v", err)
+				}
+			} else {
+				go a.Server.Shutdown()
 			}
 		})
 
-		admin.Get("/update-status", func(w http.ResponseWriter, r *http.Request) {
+		admin.Get("/restart-status", func(w http.ResponseWriter, r *http.Request) {
 			cfg, err := database.ViewConfig(a.DB)
 			if err != nil {
 				xhttp.Error(r.Context(), w, err)
 				return
 			}
 
-			updating := (cfg.UpdateFollowup != "") && (cfg.UpdateFollowup == a.Version) && (cfg.ListenCounter > 0)
+			restarted := cfg.RestartCtx.ListenCounter > 0
+			updated := cfg.RestartCtx.PreUpdateVersion != "" && cfg.RestartCtx.PreUpdateVersion != a.Version
+
 			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode(map[string]bool{"updating": updating}); err != nil {
+			if err := json.NewEncoder(w).Encode(map[string]bool{"restarted": restarted, "updated": updated}); err != nil {
 				xhttp.Error(r.Context(), w, err)
 			}
 		})
-
-		/*
-			admin.Post("/update", func(w http.ResponseWriter, r *http.Request) {
-				defer r.Body.Close()
-
-				if a.Version == "vX.X.X" {
-					w.Write([]byte("This is a dev build, skipping update.\n")) // replace this standardized res later
-					return
-				}
-
-				// do we really need to though?
-				if upToDate, err := a.UpdateCheck(); err != nil {
-					xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "error checking for updates", Err: err})
-					return
-				} else if upToDate {
-					w.Write([]byte("I'm already up to date!\n")) // replace this standardized res later
-					return
-				}
-
-				// parse body
-				var body UpdateBody
-				dec := json.NewDecoder(r.Body)
-				dec.DisallowUnknownFields() // surfaces unexpected input early
-				if err := dec.Decode(&body); err != nil {
-					xhttp.Error(r.Context(), w, &xhttp.Err{Code: 400, Msg: "bad request", Err: err})
-					return
-				}
-				if dec.More() {
-					http.Error(w, "invalid JSON: trailing data", http.StatusBadRequest)
-					return
-				}
-
-				// update restart context in config
-				if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
-					cfg.RestartCtx.RegisterCmds = body.RegisterCommands
-					return nil
-				}); err != nil {
-					xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to update config", Err: err})
-					return
-				}
-
-				// start update
-				if err := a.Update(true); err != nil {
-					xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to start update", Err: err})
-					return
-				}
-				a.Server.Shutdown()
-				w.Write([]byte("starting update...\n")) // replace this standardized res later
-			})
-		*/
 	})
 }

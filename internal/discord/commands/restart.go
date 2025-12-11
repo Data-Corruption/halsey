@@ -17,7 +17,7 @@ var Restart = register(BotCommand{
 	FilterBots:   true,
 	Data: discord.SlashCommandCreate{
 		Name:        "restart",
-		Description: "Turn me off and on again, that usually works ;p",
+		Description: "Backup for restarting in case my web interface explodes",
 		Options: []discord.ApplicationCommandOption{
 			discord.ApplicationCommandOptionBool{
 				Name:        "register-commands",
@@ -56,7 +56,7 @@ var Restart = register(BotCommand{
 		time.Sleep(1 * time.Second) // smoother ux
 
 		// send initial message
-		actionLabel := x.Ternary(doUpdate, "Update", "Restart")
+		actionLabel := x.Ternary(doUpdate, "Updating", "Restarting")
 		uMsg, err := a.Client.Rest.CreateFollowupMessage(a.Client.ApplicationID, event.Token(), discord.NewMessageCreateBuilder().
 			SetContentf("%s %s...", emojis.GetSpinnerEmoji(a), actionLabel).
 			SetEphemeral(true).
@@ -69,10 +69,10 @@ var Restart = register(BotCommand{
 		// set update context in config
 		if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
 			cfg.RestartCtx = database.RestartContext{
-				RegisterCmds: data.Options["register-commands"].Bool(),
-				WasUpdate:    updateBool,
-				IToken:       event.Token(),
-				MessageID:    uMsg.ID,
+				RegisterCmds:  data.Options["register-commands"].Bool(),
+				ListenCounter: 0,
+				IToken:        event.Token(),
+				MessageID:     uMsg.ID,
 			}
 			return nil
 		}); err != nil {

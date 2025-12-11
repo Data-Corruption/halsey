@@ -110,7 +110,9 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, registerCommands bool)
 	var rCtx database.RestartContext
 	if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
 		rCtx = cfg.RestartCtx                      // copy current
-		cfg.RestartCtx = database.RestartContext{} // clear
+		cfg.RestartCtx.RegisterCmds = false        // clear
+		cfg.RestartCtx.IToken = ""                 // clear
+		cfg.RestartCtx.MessageID = snowflake.ID(0) // clear
 		return nil
 	}); err != nil {
 		a.Log.Errorf("failed to clear restartContext in database config: %s", err)
@@ -125,10 +127,14 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, registerCommands bool)
 	a.Log.Debugf("Commands: %v", commands.Registry)
 
 	// update the /update interaction if exists
+	uMsg := "Restarted successfully!"
+	if rCtx.PreUpdateVersion != a.Version {
+		uMsg = "Updated to version " + a.Version + " successfully!"
+	}
 	if rCtx.IToken != "" && rCtx.MessageID != 0 {
 		a.Log.Infof("Following up on update interaction. Token: %s, MessageID: %s", rCtx.IToken, rCtx.MessageID.String())
 		_, err := a.Client.Rest.UpdateFollowupMessage(a.Client.ApplicationID, rCtx.IToken, rCtx.MessageID, discord.NewMessageUpdateBuilder().
-			SetContentf("Updated to version %s successfully!", a.Version).Build())
+			SetContent(uMsg).Build())
 		if err != nil {
 			a.Log.Errorf("failed to update followup message: %s", err)
 			// don't return here since err could be due to user deleting the message or something

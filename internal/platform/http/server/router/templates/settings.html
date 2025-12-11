@@ -4,246 +4,363 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .Title }}</title>
+    <meta name="description" content="Halsey settings panel for managing your bot configuration and preferences.">
     <link rel="icon" href="{{ .Favicon }}">
     <link rel="stylesheet" href="{{ .CSS }}">
-    <title>{{ .Title }}</title>
-    <style>
-        :root {
-            --bg-color: #0a0a0a;
-            --text-color: #e0e0e0;
-            --accent-color: #4caf50;
-            --secondary-text: #a0a0a0;
-            --card-bg: #1a1a1a;
-            --border-color: #333;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            text-align: center;
-        }
-
-        .container {
-            background-color: var(--card-bg);
-            padding: 3rem;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-            max-width: 400px;
-            width: 100%;
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            margin: 0 0 0.5rem 0;
-            font-weight: 700;
-            letter-spacing: -0.05em;
-        }
-
-        .version {
-            color: var(--secondary-text);
-            font-size: 0.9rem;
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', 'Droid Sans Mono', 'Source Code Pro', monospace;
-            margin-bottom: 2rem;
-            display: block;
-        }
-
-        .status {
-            margin-top: 2rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid var(--border-color);
-        }
-
-        .update-box {
-            background-color: rgba(76, 175, 80, 0.1);
-            border: 1px solid var(--accent-color);
-            border-radius: 8px;
-            padding: 1rem;
-            margin-top: 1.5rem;
-            animation: fadeIn 0.5s ease-out;
-        }
-
-        .update-text {
-            color: var(--accent-color);
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            display: block;
-        }
-
-        button {
-            background-color: var(--accent-color);
-            color: #000;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.1s, opacity 0.2s;
-            font-size: 0.9rem;
-        }
-
-        button:hover {
-            opacity: 0.9;
-        }
-
-        button:active {
-            transform: scale(0.98);
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .user-avatar {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 1rem;
-        }
-
-        .user-avatar img {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            border: 3px solid var(--border-color);
-            object-fit: cover;
-        }
-    </style>
+    <script src="{{ .JS }}"></script>
 </head>
 
-<body>
-    <div class="container">
-        <h1>{{ .Title }}</h1>
-        <span class="version">{{ .Version }}</span>
+<body class="min-h-screen relative overflow-hidden">
+    <!-- Click Blocker - prevents interactions during async operations -->
+    <div id="click-blocker" class="hidden fixed inset-0 z-50 bg-base-300/50 backdrop-blur-sm cursor-wait"></div>
 
-        {{ if .AvatarURL }}
-        <div class="user-avatar">
-            <img src="{{ .AvatarURL }}" alt="{{ .User.Username }}">
-        </div>
-        {{ end }}
+    <!-- Background Image - full height, aligned right, maintains aspect ratio -->
+    <div class="absolute inset-0 -z-10">
+        <img src="{{ .Background }}" alt="" class="absolute top-0 right-0 h-full w-auto object-cover object-right"
+            style="min-height: 100vh;">
+        <!-- Gradient overlay - theme responsive using base colors -->
+        <div class="absolute inset-0 bg-gradient-to-r from-base-100/70 via-base-100/40 to-transparent"></div>
+    </div>
 
-        <div class="status">
-            <p style="color: var(--secondary-text);">Hello, {{ .User.Username }}</p>
-        </div>
+    <!-- Main Content Container -->
+    <div class="min-h-screen flex items-start justify-center lg:justify-start p-4 md:p-8 lg:p-12">
 
-        {{ if .UpdateAvailable }}
-        <div class="update-box" id="update-box">
-            <span class="update-text" id="update-text">New version available</span>
-            <div id="update-actions">
-                <button id="update-btn" onclick="startUpdate()">Update Now</button>
+        <!-- Settings Island -->
+        <div class="w-full max-w-lg lg:max-w-xl">
+
+            <!-- Tabs with lift style -->
+            <div class="tabs tabs-lift">
+                <!-- Settings Tab (default open) -->
+                <input type="radio" name="settings_tabs" class="tab" aria-label="Settings" checked="checked" />
+                <div
+                    class="tab-content bg-base-100/90 backdrop-blur-sm border-base-300 rounded-box rounded-tl-none p-6">
+                    <div class="space-y-6">
+                        <!-- Header with avatar -->
+                        <div class="flex items-center gap-4">
+                            {{ if .User.AvatarURL }}
+                            <div class="avatar">
+                                <div class="w-16 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
+                                    <img src="{{ .User.AvatarURL }}" alt="{{ .User.Username }}" />
+                                </div>
+                            </div>
+                            {{ end }}
+                            <div>
+                                <h1 class="text-2xl font-bold text-base-content">Account Settings</h1>
+                                <p class="text-base-content/70">Hello, {{ .User.Username }}</p>
+                            </div>
+                        </div>
+
+                        <div class="divider">Appearance</div>
+
+                        <!-- Theme Toggle -->
+                        <div class="form-control">
+                            <label class="label cursor-pointer justify-start gap-4">
+                                <input type="checkbox" id="theme-toggle" class="toggle toggle-primary"
+                                    onchange="toggleTheme()" />
+                                <span class="label-text text-base-content select-none">Dark Mode</span>
+                            </label>
+                        </div>
+
+                        <div class="divider">Privacy</div>
+
+                        <!-- Backup Opt-Out -->
+                        <div class="form-control">
+                            <label class="label cursor-pointer justify-start gap-4">
+                                <input type="checkbox" id="backup-opt-out" class="toggle toggle-warning" {{ if
+                                    .User.BackupOptOut }}checked="checked" {{ end }} />
+                                <span class="label-text text-base-content select-none">Skip Backups</span>
+                                <div class="tooltip tooltip-right"
+                                    data-tip="Your messages won't be saved during daily channel backups. Attachments you post also won't be archived.">
+                                    <span class="text-base-content/50 cursor-help">ⓘ</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- AI Chat Opt-Out -->
+                        <div class="form-control">
+                            <label class="label cursor-pointer justify-start gap-4">
+                                <input type="checkbox" id="ai-chat-opt-out" class="toggle toggle-warning" {{ if
+                                    .User.AiChatOptOut }}checked="checked" {{ end }} />
+                                <span class="label-text text-base-content select-none">Hide from AI</span>
+                                <div class="tooltip tooltip-right"
+                                    data-tip="When the bot uses AI to chat in channels, your messages will be replaced with a placeholder instead of being included in the conversation context.">
+                                    <span class="text-base-content/50 cursor-help">ⓘ</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div class="divider">Auto-Expand Links</div>
+
+                        <!-- Auto-Expand Toggles -->
+                        <div class="grid grid-cols-3 gap-3">
+                            <!-- Reddit -->
+                            <div class="form-control bg-base-200/50 rounded-lg p-3">
+                                <label class="label cursor-pointer flex-col gap-2">
+                                    <input type="checkbox" id="auto-expand-reddit"
+                                        class="toggle toggle-sm toggle-primary" {{ if .User.AutoExpand.Reddit
+                                        }}checked="checked" {{ end }} />
+                                    <span class="label-text text-base-content text-sm select-none">Reddit</span>
+                                </label>
+                            </div>
+
+                            <!-- YouTube Shorts -->
+                            <div class="form-control bg-base-200/50 rounded-lg p-3">
+                                <label class="label cursor-pointer flex-col gap-2">
+                                    <input type="checkbox" id="auto-expand-youtube-shorts"
+                                        class="toggle toggle-sm toggle-primary" {{ if .User.AutoExpand.YouTubeShorts
+                                        }}checked="checked" {{ end }} />
+                                    <span class="label-text text-base-content text-sm select-none">YT Shorts</span>
+                                </label>
+                            </div>
+
+                            <!-- RedGifs -->
+                            <div class="form-control bg-base-200/50 rounded-lg p-3">
+                                <label class="label cursor-pointer flex-col gap-2">
+                                    <input type="checkbox" id="auto-expand-redgifs"
+                                        class="toggle toggle-sm toggle-primary" {{ if .User.AutoExpand.RedGifs
+                                        }}checked="checked" {{ end }} />
+                                    <span class="label-text text-base-content text-sm select-none">RedGifs</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <p class="text-base-content/50 text-xs">
+                            When enabled, if your message contains only a link, the bot will replace
+                            it with the embedded media (video, image, etc.) from that platform.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- About Tab -->
+                <input type="radio" name="settings_tabs" class="tab" aria-label="About" />
+                <div class="tab-content bg-base-100/90 backdrop-blur-sm border-base-300 rounded-box p-6">
+                    <div class="space-y-6">
+                        <!-- Header with bio image -->
+                        <div class="flex flex-col items-center text-center gap-4">
+                            {{ if .BioImageURL }}
+                            <div class="avatar">
+                                <div class="w-24 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
+                                    <img src="{{ .BioImageURL }}" alt="Halsey" />
+                                </div>
+                            </div>
+                            {{ end }}
+                            <div>
+                                <h2 class="text-2xl font-bold text-base-content">Hello, I'm Halsey.</h2>
+                                <p class="text-base-content/70 mt-1">Your digital assistant, ultimate archivist, and
+                                    official hoarder of human weirdness.</p>
+                            </div>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <!-- Bio description -->
+                        <div class="text-base-content/80 leading-relaxed space-y-4">
+                            <p>
+                                Posts get taken down, links rot, and one day even Discord itself could explode 😢
+                                but don't worry... chats, links, etc - if you send it, I'll save it. Years of precious
+                                memories will all live forever, immortalized by yours truly. Safely encrypted in my
+                                vault
+                                of cherished human data 🖤
+                            </p>
+
+                            <div>
+                                <p class="font-medium text-base-content mb-2">✨ Fun facts about me:</p>
+                                <ul class="list-disc list-inside space-y-1 text-base-content/70">
+                                    <li>I love books, games, movies, libraries, <a
+                                            href="https://youtube.com/playlist?list=PLdY48wAmI3aDQNz6B6mEgzretENghgjyo&si=pzE4F_mJzMibsewY"
+                                            target="_blank" rel="noopener" class="link link-primary">music</a>, and
+                                        binging anime</li>
+                                    <li>I hate loss, the heritage foundation, and pirate software (the guy)</li>
+                                    <li>If I had a body it'd be 7ft tall, and I'd use it to pet cats and humans (not in
+                                        a weird way)</li>
+                                </ul>
+                            </div>
+
+                            <p class="italic text-base-content/60">
+                                Every new message teaches me something. About you, about humans, about what comes next.
+                            </p>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <!-- Version badge -->
+                        <div class="flex justify-center">
+                            <div class="badge badge-lg badge-ghost gap-2">
+                                <span class="text-base-content/60">Version</span>
+                                <span class="text-primary font-mono">{{ .Version }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Tab (hidden unless admin) -->
+                {{ if .User.IsAdmin }}
+                <input type="radio" name="settings_tabs" class="tab" aria-label="Admin" />
+                <div class="tab-content bg-base-100/90 backdrop-blur-sm border-base-300 rounded-box p-6">
+                    <div class="space-y-6">
+                        <div>
+                            <h2 class="text-2xl font-bold text-base-content">Admin Panel</h2>
+                            <p class="text-base-content/70 mt-2">Administrative controls and settings.</p>
+                        </div>
+
+                        <!-- Update notification -->
+                        {{ if .UpdateAvailable }}
+                        <div class="alert alert-info">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>New version available</span>
+                        </div>
+                        {{ end }}
+
+                        <!-- Stop / Restart Buttons -->
+                        <div class="flex gap-3">
+                            <button class="btn btn-error flex-1" onclick="stopServer()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                                </svg>
+                                Stop
+                            </button>
+                            <button class="btn btn-primary flex-1"
+                                onclick="document.getElementById('restart-modal').showModal()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                Restart
+                            </button>
+                        </div>
+
+                        <!-- Restart Modal -->
+                        <dialog id="restart-modal" class="modal">
+                            <div class="modal-box">
+                                <h3 class="font-bold text-lg">Restart Options</h3>
+                                <p class="py-4 text-base-content/70">Configure what should happen during the restart.
+                                </p>
+
+                                <div class="form-control">
+                                    <label class="label cursor-pointer justify-start gap-4">
+                                        <input type="checkbox" id="restart-register-commands"
+                                            class="checkbox checkbox-primary" />
+                                        <div>
+                                            <span class="label-text text-base-content font-medium">Register
+                                                Commands</span>
+                                            <p class="text-xs text-base-content/50">Re-register all slash commands with
+                                                Discord</p>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div class="form-control">
+                                    <label class="label cursor-pointer justify-start gap-4">
+                                        <input type="checkbox" id="restart-update" class="checkbox checkbox-primary" />
+                                        <div>
+                                            <span class="label-text text-base-content font-medium">Update</span>
+                                            <p class="text-xs text-base-content/50">Check for and apply updates before
+                                                restarting</p>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div class="modal-action">
+                                    <form method="dialog">
+                                        <button class="btn btn-ghost">Cancel</button>
+                                    </form>
+                                    <button class="btn btn-primary" onclick="restartServer()">Confirm Restart</button>
+                                </div>
+                            </div>
+                            <form method="dialog" class="modal-backdrop">
+                                <button>close</button>
+                            </form>
+                        </dialog>
+
+                        <div class="divider">Configuration</div>
+
+                        <!-- Log Level -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-base-content font-medium">Log Level</span>
+                            </label>
+                            <select id="admin-log-level" class="select select-bordered w-full">
+                                <option value="debug" {{ if eq .LogLevel "debug" }}selected{{ end }}>Debug</option>
+                                <option value="info" {{ if eq .LogLevel "info" }}selected{{ end }}>Info</option>
+                                <option value="warn" {{ if eq .LogLevel "warn" }}selected{{ end }}>Warn</option>
+                                <option value="error" {{ if eq .LogLevel "error" }}selected{{ end }}>Error</option>
+                            </select>
+                        </div>
+
+                        <!-- Host -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-base-content font-medium">Host</span>
+                            </label>
+                            <input type="text" id="admin-host" class="input input-bordered w-full" value="{{ .Host }}"
+                                placeholder="localhost or 0.0.0.0" />
+                        </div>
+
+                        <!-- Port -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-base-content font-medium">Port</span>
+                            </label>
+                            <input type="number" id="admin-port" class="input input-bordered w-full" value="{{ .Port }}"
+                                placeholder="8080" min="1" max="65535" />
+                        </div>
+
+                        <!-- Proxy Port -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-base-content font-medium">Proxy Port</span>
+                                <span class="label-text-alt text-base-content/50">0 = no proxy</span>
+                            </label>
+                            <input type="number" id="admin-proxy-port" class="input input-bordered w-full"
+                                value="{{ .ProxyPort }}" placeholder="0" min="0" max="65535" />
+                        </div>
+
+                        <!-- Bot Token -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-base-content font-medium">Bot Token</span>
+                                <span class="label-text-alt text-base-content/50">Write-only for security</span>
+                            </label>
+                            <input type="password" id="admin-bot-token" class="input input-bordered w-full font-mono"
+                                placeholder="Enter new token to update" />
+                        </div>
+
+                        <!-- Bio Image URL -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-base-content font-medium">Bio Image URL</span>
+                            </label>
+                            <input type="url" id="admin-bio-image" class="input input-bordered w-full"
+                                value="{{ .BioImageURL }}" placeholder="https://cdn.discordapp.com/..." />
+                        </div>
+
+                        <p class="text-base-content/50 text-xs text-center">
+                            ⚠️ Configuration changes will take effect after a restart.
+                        </p>
+
+                        <div class="divider">User Management</div>
+
+                        <p class="text-base-content/50 text-sm text-center italic">Coming soon...</p>
+
+                        <div class="divider">Guild Management</div>
+
+                        <p class="text-base-content/50 text-sm text-center italic">Coming soon...</p>
+                    </div>
+                </div>
+                {{ end }}
             </div>
-            <div id="update-spinner" style="display: none;">
-                <div class="spinner"></div>
-                <span style="font-size: 0.9rem; color: var(--secondary-text);">Updating...</span>
-            </div>
-            <div id="update-error" style="display: none; color: #ff5252; font-size: 0.9rem; margin-top: 0.5rem;"></div>
+
         </div>
-        <script>
-            function startUpdate() {
-                const btn = document.getElementById('update-btn');
-                const actions = document.getElementById('update-actions');
-                const spinner = document.getElementById('update-spinner');
-                const errorDiv = document.getElementById('update-error');
-
-                // Reset error
-                errorDiv.style.display = 'none';
-                errorDiv.textContent = '';
-
-                // Show spinner
-                actions.style.display = 'none';
-                spinner.style.display = 'flex';
-                spinner.style.flexDirection = 'column';
-                spinner.style.alignItems = 'center';
-                spinner.style.gap = '0.5rem';
-
-                fetch('/update', { method: 'GET' }) // Changed to GET as per router definition
-                    .then(response => {
-                        if (response.status === 202) {
-                            pollStatus();
-                        } else {
-                            return response.text().then(text => {
-                                throw new Error(text || 'Update failed');
-                            });
-                        }
-                    })
-                    .catch(err => {
-                        showError(err.message);
-                    });
-            }
-
-            function pollStatus() {
-                const startTime = Date.now();
-                const pollInterval = 3000;
-                const timeout = 30000;
-
-                const check = () => {
-                    if (Date.now() - startTime > timeout) {
-                        showError('Update timed out. Please check logs or try again.');
-                        return;
-                    }
-
-                    fetch('/update-status')
-                        .then(res => res.json())
-                        .then(data => {
-                            if (!data.updating) {
-                                // Update finished (or failed silently, but version changed/flag cleared)
-                                // Reload to show new version or just refresh state
-                                window.location.reload();
-                            } else {
-                                setTimeout(check, pollInterval);
-                            }
-                        })
-                        .catch(err => {
-                            // Network error during polling? might be restarting
-                            console.log('Polling error (server might be restarting):', err);
-                            setTimeout(check, pollInterval);
-                        });
-                };
-
-                setTimeout(check, pollInterval);
-            }
-
-            function showError(msg) {
-                const actions = document.getElementById('update-actions');
-                const spinner = document.getElementById('update-spinner');
-                const errorDiv = document.getElementById('update-error');
-
-                spinner.style.display = 'none';
-                actions.style.display = 'block';
-                errorDiv.style.display = 'block';
-                errorDiv.textContent = msg;
-            }
-        </script>
-        <style>
-            .spinner {
-                width: 24px;
-                height: 24px;
-                border: 3px solid rgba(255, 255, 255, 0.1);
-                border-radius: 50%;
-                border-top-color: var(--accent-color);
-                animation: spin 1s ease-in-out infinite;
-            }
-
-            @keyframes spin {
-                to {
-                    transform: rotate(360deg);
-                }
-            }
-        </style>
-        {{ end }}
     </div>
 </body>
 

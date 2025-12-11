@@ -217,11 +217,9 @@ func uPrep(version string, db *wrap.DB) error {
 	if version == "vX.X.X" {
 		return ErrDevBuild
 	}
-	// set updateAvailable to false since we're updating, and followup to the current version
+	// set updateAvailable to false since we're updating
 	if err := database.UpdateConfig(db, func(cfg *database.Configuration) error {
 		cfg.UpdateAvailable = false
-		cfg.UpdateFollowup = version
-		cfg.ListenCounter = 0
 		return nil
 	}); err != nil {
 		return fmt.Errorf("failed to update updateAvailable in config: %w", err)
@@ -230,8 +228,6 @@ func uPrep(version string, db *wrap.DB) error {
 }
 
 func runUpdateDetached(serviceEnabled bool, name, pipeline, logPath string) error {
-	var cmd *exec.Cmd
-
 	if serviceEnabled {
 		// Run as transient systemd service (like a service but one-off and
 		// configured via cmdline args). Assuming this is run from in the daemon,
@@ -247,7 +243,7 @@ func runUpdateDetached(serviceEnabled bool, name, pipeline, logPath string) erro
 		runtime := fmt.Sprintf("RuntimeMaxSec=%ds", int(UpdateTimeout.Seconds()))
 		syslogIdent := fmt.Sprintf("SyslogIdentifier=%s-update", name)
 
-		cmd = exec.CommandContext(
+		cmd := exec.CommandContext(
 			lCtx,
 			"systemd-run",
 			"--user",
@@ -262,6 +258,7 @@ func runUpdateDetached(serviceEnabled bool, name, pipeline, logPath string) erro
 			"-p", "TimeoutStopSec=30s", // graceful shutdown time
 			"/bin/sh", "-c", pipeline,
 		)
+		return cmd.Run()
 	} else {
 		// Not under threat of c group being killed, so just use setsid
 		// with shell-managed logging. escape logPath to be safe.
@@ -277,6 +274,4 @@ func runUpdateDetached(serviceEnabled bool, name, pipeline, logPath string) erro
 		}
 		return nil
 	}
-
-	return cmd.Run()
 }

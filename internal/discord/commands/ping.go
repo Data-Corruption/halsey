@@ -13,7 +13,7 @@ var Ping = register(BotCommand{
 	FilterBots:   true,
 	Data: discord.SlashCommandCreate{
 		Name:        "ping",
-		Description: "Check if the bot is responsive.",
+		Description: "Check if i'm turned on ;p",
 	},
 	Handler: func(a *app.App, event *events.ApplicationCommandInteractionCreate) error {
 		event.CreateMessage(discord.NewMessageCreateBuilder().SetContent("Pong!").Build())

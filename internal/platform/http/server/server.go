@@ -26,7 +26,7 @@ func New(app *app.App, port int, handler http.Handler) error {
 			}
 			// increment listen counter
 			if err := database.UpdateConfig(app.DB, func(cfg *database.Configuration) error {
-				cfg.ListenCounter++
+				cfg.RestartCtx.ListenCounter++
 				return nil
 			}); err != nil {
 				app.Log.Errorf("failed to increment listen counter: %v", err)

@@ -15,7 +15,7 @@ var Settings = register(BotCommand{
 	FilterBots:   true,
 	Data: discord.SlashCommandCreate{
 		Name:        "settings",
-		Description: "View or change bot settings",
+		Description: "Open my web interface to manage your settings",
 	},
 	Handler: func(a *app.App, event *events.ApplicationCommandInteractionCreate) error {
 		// create settings session

@@ -8,9 +8,11 @@ import (
 )
 
 type RestartContext struct {
-	RegisterCmds bool `json:"registerCmds"` // on startup, should we register commands
-	// on startup if these are set, a followup message is sent to this interaction
-	WasUpdate bool         `json:"wasUpdate"`
+	RegisterCmds     bool   `json:"registerCmds"`     // on startup, should we register commands
+	PreUpdateVersion string `json:"preUpdateVersion"` // version before update attempt, used for determining if update was successful
+	ListenCounter    int    `json:"listenCounter"`    // increment this on each service listen, used for detecting restarts
+
+	// for discord triggered restart followups
 	IToken    string       `json:"interactionToken"`
 	MessageID snowflake.ID `json:"messageID"`
 }
@@ -21,7 +23,7 @@ type RestartContext struct {
 type DomainBools struct {
 	Reddit        bool `json:"reddit"`
 	RedGifs       bool `json:"redGifs"` // ;p
-	YouTube       bool `json:"youTube"`
+	YouTube       bool `json:"youTube"` // ignored by auto expand
 	YouTubeShorts bool `json:"youTubeShorts"`
 }
 
@@ -35,10 +37,6 @@ type Configuration struct {
 	LastUpdateCheck     time.Time `json:"lastUpdateCheck"`
 	UpdateAvailable     bool      `json:"updateAvailable"`
 
-	// version when /update is accepted. This is lazily used to determine if the update was successful after restart.
-	UpdateFollowup string `json:"updateFollowup"`
-	ListenCounter  int    `json:"listenCounter"` // increment this on each service listen, used for detecting restarts
-
 	RestartCtx RestartContext `json:"restartContext"`
 
 	BotToken     string       `json:"botToken"`
@@ -51,6 +49,7 @@ type User struct {
 	Username     string      `json:"username"`
 	AvatarURL    *string     `json:"avatarURL"`    // *string marshals as {null | "" | "x"}
 	BackupOptOut bool        `json:"backupOptOut"` // skips backing up messages from this user
+	AiChatOptOut bool        `json:"aiChatOptOut"` // excludes this user from AI chat features
 	AutoExpand   DomainBools `json:"autoExpand"`
 }
 

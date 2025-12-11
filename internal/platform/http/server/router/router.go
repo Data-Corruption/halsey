@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"sprout/internal/app"
 	"sprout/internal/platform/http/server/router/css"
+	"sprout/internal/platform/http/server/router/images"
+	"sprout/internal/platform/http/server/router/js"
 
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/go-chi/chi/v5"
@@ -35,6 +37,29 @@ func New(a *app.App) *chi.Mux {
 		data := css.Data()
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		w.Write(data)
+	})
+
+	// serve embedded JS
+	js.Init()
+	r.Get(js.Path(), func(w http.ResponseWriter, r *http.Request) {
+		data := js.Data()
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		w.Write(data)
+	})
+
+	// serve embedded background images
+	images.Init()
+	r.Get("/bg/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := chi.URLParam(r, "name")
+		data := images.Data(name)
+		if data == nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/avif")
+		w.Header().Set("Cache-Control", "public, max-age=86400") // 1 day cache
 		w.Write(data)
 	})
 

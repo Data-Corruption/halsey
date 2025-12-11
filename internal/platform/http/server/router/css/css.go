@@ -21,7 +21,7 @@ func Init() error {
 		return err
 	}
 	sum := sha256.Sum256(data)
-	hash := hex.EncodeToString(sum[:8]) // shorten if you like
+	hash := hex.EncodeToString(sum[:8]) // shorten if needed
 
 	cssData = data
 	cssPath = "/output." + hash + ".css"

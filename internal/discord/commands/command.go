@@ -32,3 +32,10 @@ func register(cmd BotCommand) BotCommand {
 	Registry = append(Registry, cmd)
 	return cmd
 }
+
+// Response helpers
+
+func createFollowupMessage(app *app.App, eventToken string, content string, ephemeral bool) error {
+	_, err := app.Client.Rest.CreateFollowupMessage(app.Client.ApplicationID, eventToken, discord.NewMessageCreateBuilder().SetContent(content).SetEphemeral(ephemeral).Build())
+	return err
+}

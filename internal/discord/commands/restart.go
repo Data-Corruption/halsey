@@ -32,7 +32,9 @@ var Restart = register(BotCommand{
 		},
 	},
 	Handler: func(a *app.App, event *events.ApplicationCommandInteractionCreate) error {
-		event.DeferCreateMessage(true)
+		if err := event.DeferCreateMessage(true); err != nil {
+			return err
+		}
 
 		// parse stuff
 		data := event.SlashCommandInteractionData()
@@ -43,10 +45,7 @@ var Restart = register(BotCommand{
 		if updateBool {
 			if updateAvailable, err := a.CheckForUpdate(); err != nil {
 				a.Log.Errorf("Error checking for updates: %s", err)
-				a.Client.Rest.CreateFollowupMessage(a.Client.ApplicationID, event.Token(), discord.NewMessageCreateBuilder().
-					SetContent("Error checking for updates. Please check the logs for more details.").
-					SetEphemeral(true).
-					Build())
+				createFollowupMessage(a, event.Token(), "Error checking for updates. Please check the logs for more details.", true)
 				return err
 			} else if updateAvailable {
 				doUpdate = true

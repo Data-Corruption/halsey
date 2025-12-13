@@ -12,8 +12,10 @@ import (
 	"sprout/internal/platform/http/server/router/css"
 	"sprout/internal/platform/http/server/router/images"
 	"sprout/internal/platform/http/server/router/js"
+	"strings"
 
 	"github.com/Data-Corruption/stdx/xhttp"
+	"github.com/disgoorg/snowflake/v2"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -46,6 +48,33 @@ func settingsRoutes(a *app.App, r *chi.Mux) {
 				return
 			}
 
+			// get bot avatar
+			app, err := a.Client.Rest.GetCurrentApplication()
+			if err != nil {
+				xhttp.Error(r.Context(), w, err)
+				return
+			}
+			ext := "png"
+			if strings.HasPrefix(*app.Bot.Avatar, "a_") {
+				ext = "gif"
+			}
+			avatarURL := fmt.Sprintf(
+				"https://cdn.discordapp.com/avatars/%s/%s.%s?size=256",
+				app.ID,
+				*app.Bot.Avatar,
+				ext,
+			)
+
+			// Fetch guilds with channels for admin users
+			var guilds []database.GuildWithID
+			if session.User.IsAdmin {
+				guilds, err = database.ViewAllGuildsWithChannels(a.DB)
+				if err != nil {
+					xhttp.Error(r.Context(), w, err)
+					return
+				}
+			}
+
 			data := map[string]any{
 				"CSS":             css.Path(),
 				"JS":              js.Path(),
@@ -55,12 +84,15 @@ func settingsRoutes(a *app.App, r *chi.Mux) {
 				"Version":         a.Version,
 				"UpdateAvailable": cfg.UpdateAvailable && (a.Version != "vX.X.X"),
 				"User":            session.User,
-				"BioImageURL":     cfg.BioImageURL,
+				"AvatarURL":       template.URL(avatarURL),
 				// Admin config fields
-				"LogLevel":  cfg.LogLevel,
-				"Port":      cfg.Port,
-				"Host":      cfg.Host,
-				"ProxyPort": cfg.ProxyPort,
+				"LogLevel":     cfg.LogLevel,
+				"Port":         cfg.Port,
+				"Host":         cfg.Host,
+				"ProxyPort":    cfg.ProxyPort,
+				"SystemPrompt": cfg.SystemPrompt,
+				// Guild management
+				"Guilds": guilds,
 			}
 			if err := tmpl.Execute(w, data); err != nil {
 				xhttp.Error(r.Context(), w, err)
@@ -69,6 +101,60 @@ func settingsRoutes(a *app.App, r *chi.Mux) {
 		})
 
 		// normal permissioned settings routes
+
+		// Update user settings (non-admin)
+		s.Post("/user", func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+
+			session, ok := auth.SessionFromContext(r.Context())
+			if !ok {
+				xhttp.Error(r.Context(), w, auth.ErrNoSessionInContext)
+				return
+			}
+
+			// Parse body - all fields are optional
+			var body struct {
+				BackupOptOut *bool `json:"backupOptOut"`
+				AiChatOptOut *bool `json:"aiChatOptOut"`
+				AutoExpand   *struct {
+					Reddit        *bool `json:"reddit"`
+					YouTubeShorts *bool `json:"youTubeShorts"`
+					RedGifs       *bool `json:"redGifs"`
+				} `json:"autoExpand"`
+			}
+			dec := json.NewDecoder(r.Body)
+			if err := dec.Decode(&body); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 400, Msg: "bad request", Err: err})
+				return
+			}
+
+			// Update only the fields that were provided
+			if _, err := database.UpsertUser(a.DB, session.UserID, func(user *database.User) error {
+				if body.BackupOptOut != nil {
+					user.BackupOptOut = *body.BackupOptOut
+				}
+				if body.AiChatOptOut != nil {
+					user.AiChatOptOut = *body.AiChatOptOut
+				}
+				if body.AutoExpand != nil {
+					if body.AutoExpand.Reddit != nil {
+						user.AutoExpand.Reddit = *body.AutoExpand.Reddit
+					}
+					if body.AutoExpand.YouTubeShorts != nil {
+						user.AutoExpand.YouTubeShorts = *body.AutoExpand.YouTubeShorts
+					}
+					if body.AutoExpand.RedGifs != nil {
+						user.AutoExpand.RedGifs = *body.AutoExpand.RedGifs
+					}
+				}
+				return nil
+			}); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to update user", Err: err})
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
+		})
 
 		// admin only routes.
 		adminSettingsRoutes(a, s)
@@ -137,6 +223,54 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 			}
 		})
 
+		// Update admin configuration
+		admin.Post("/admin", func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+
+			// Parse body - all fields are optional
+			var body struct {
+				LogLevel     *string `json:"logLevel"`
+				Host         *string `json:"host"`
+				Port         *int    `json:"port"`
+				ProxyPort    *int    `json:"proxyPort"`
+				BotToken     *string `json:"botToken"`
+				SystemPrompt *string `json:"systemPrompt"`
+			}
+			dec := json.NewDecoder(r.Body)
+			if err := dec.Decode(&body); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 400, Msg: "bad request", Err: err})
+				return
+			}
+
+			// Update only the fields that were provided
+			if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
+				if body.LogLevel != nil {
+					cfg.LogLevel = *body.LogLevel
+				}
+				if body.Host != nil {
+					cfg.Host = *body.Host
+				}
+				if body.Port != nil {
+					cfg.Port = *body.Port
+				}
+				if body.ProxyPort != nil {
+					cfg.ProxyPort = *body.ProxyPort
+				}
+				if body.BotToken != nil && *body.BotToken != "" {
+					cfg.BotToken = *body.BotToken
+				}
+				if body.SystemPrompt != nil && *body.SystemPrompt != "" {
+					cfg.SystemPrompt = *body.SystemPrompt
+				}
+				return nil
+			}); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to update config", Err: err})
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
+		})
+
 		admin.Get("/restart-status", func(w http.ResponseWriter, r *http.Request) {
 			cfg, err := database.ViewConfig(a.DB)
 			if err != nil {
@@ -151,6 +285,100 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 			if err := json.NewEncoder(w).Encode(map[string]bool{"restarted": restarted, "updated": updated}); err != nil {
 				xhttp.Error(r.Context(), w, err)
 			}
+		})
+
+		// Update guild settings
+		admin.Post("/guild/{guildID}", func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+
+			guildIDStr := chi.URLParam(r, "guildID")
+			guildID, err := snowflake.Parse(guildIDStr)
+			if err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 400, Msg: "invalid guild ID", Err: err})
+				return
+			}
+
+			// Parse body - all fields are optional
+			var body struct {
+				SynctubeURL    *string       `json:"synctubeURL"`
+				BackupEnabled  *bool         `json:"backupEnabled"`
+				AntiRotEnabled *bool         `json:"antiRotEnabled"`
+				AiChatEnabled  *bool         `json:"aiChatEnabled"`
+				SystemPrompt   *string       `json:"systemPrompt"`
+				BotChannelID   *snowflake.ID `json:"botChannelID"`
+				FavChannelID   *snowflake.ID `json:"favChannelID"`
+			}
+			dec := json.NewDecoder(r.Body)
+			if err := dec.Decode(&body); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 400, Msg: "bad request", Err: err})
+				return
+			}
+
+			// Update only the fields that were provided
+			if _, err := database.UpsertGuild(a.DB, guildID, func(guild *database.Guild) error {
+				if body.SynctubeURL != nil {
+					guild.SynctubeURL = *body.SynctubeURL
+				}
+				if body.BackupEnabled != nil {
+					guild.Backup.Enabled = *body.BackupEnabled
+				}
+				if body.AntiRotEnabled != nil {
+					guild.AntiRotEnabled = *body.AntiRotEnabled
+				}
+				if body.AiChatEnabled != nil {
+					guild.AiChatEnabled = *body.AiChatEnabled
+				}
+				if body.SystemPrompt != nil {
+					guild.SystemPrompt = *body.SystemPrompt
+				}
+				if body.BotChannelID != nil {
+					guild.BotChannelID = *body.BotChannelID
+				}
+				if body.FavChannelID != nil {
+					guild.FavChannelID = *body.FavChannelID
+				}
+				return nil
+			}); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to update guild", Err: err})
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
+		})
+
+		// Update channel settings
+		admin.Post("/channel/{channelID}", func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+
+			channelIDStr := chi.URLParam(r, "channelID")
+			channelID, err := snowflake.Parse(channelIDStr)
+			if err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 400, Msg: "invalid channel ID", Err: err})
+				return
+			}
+
+			// Parse body - all fields are optional
+			var body struct {
+				BackupEnabled *bool `json:"backupEnabled"`
+			}
+			dec := json.NewDecoder(r.Body)
+			if err := dec.Decode(&body); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 400, Msg: "bad request", Err: err})
+				return
+			}
+
+			// Update only the fields that were provided
+			if _, err := database.UpsertChannel(a.DB, channelID, func(channel *database.Channel) error {
+				if body.BackupEnabled != nil {
+					channel.Backup.Enabled = *body.BackupEnabled
+				}
+				return nil
+			}); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to update channel", Err: err})
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
 		})
 	})
 }

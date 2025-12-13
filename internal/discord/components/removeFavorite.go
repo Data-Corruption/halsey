@@ -36,7 +36,7 @@ var RemoveFavorite = register(BotComponent{
 
 		// send confirmation to bot channel
 		msg := fmt.Sprintf("Unfavorited https://discord.com/channels/%s/%s/%s", event.GuildID(), sourceChannelID, sourceMessageID)
-		if _, err := response.MessageBotChannel(a, discord.NewMessageCreateBuilder().SetContent(msg).Build()); err != nil {
+		if _, err := response.MessageBotChannel(a, *event.GuildID(), discord.NewMessageCreateBuilder().SetContent(msg).Build()); err != nil {
 			a.Log.Errorf("Error sending unfavorite message to bot channel: %s", err)
 		}
 

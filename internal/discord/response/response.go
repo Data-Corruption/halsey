@@ -22,13 +22,13 @@ func ReactToMessage(a *app.App, channelID snowflake.ID, messageID snowflake.ID, 
 // MessageBotChannel sends a message to the bot channel defined in config.
 // Returns the created message or an error.
 // messageCreate example: discord.NewMessageCreateBuilder().SetContent("Hello, bot channel!").Build()
-func MessageBotChannel(a *app.App, messageCreate discord.MessageCreate) (*discord.Message, error) {
-	cfg, err := database.ViewConfig(a.DB)
+func MessageBotChannel(a *app.App, guildID snowflake.ID, messageCreate discord.MessageCreate) (*discord.Message, error) {
+	guild, err := database.ViewGuild(a.DB, guildID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to view config: %w", err)
+		return nil, fmt.Errorf("failed to view guild: %w", err)
 	}
-	if cfg.BotChannelID == 0 {
+	if guild.BotChannelID == 0 {
 		return nil, fmt.Errorf("bot channel ID is not set in general settings")
 	}
-	return a.Client.Rest.CreateMessage(cfg.BotChannelID, messageCreate)
+	return a.Client.Rest.CreateMessage(guild.BotChannelID, messageCreate)
 }

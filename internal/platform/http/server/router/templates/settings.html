@@ -15,6 +15,66 @@
     <!-- Click Blocker - prevents interactions during async operations -->
     <div id="click-blocker" class="hidden fixed inset-0 z-50 bg-base-300/50 backdrop-blur-sm cursor-wait"></div>
 
+    <!-- Error Modal -->
+    <dialog id="error-modal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg text-error">Error</h3>
+            <p id="error-modal-message" class="py-4 text-base-content/70">An error occurred.</p>
+            <div class="modal-action">
+                <form method="dialog">
+                    <button class="btn">Close</button>
+                </form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Restart Modal - placed outside tabs to prevent positioning issues during close animation -->
+    {{ if .User.IsAdmin }}
+    <dialog id="restart-modal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Restart Options</h3>
+            <p class="py-4 text-base-content/70">Configure what should happen during the restart.
+            </p>
+
+            <div class="form-control">
+                <label class="label cursor-pointer justify-start gap-4">
+                    <input type="checkbox" id="restart-register-commands" class="checkbox checkbox-primary" />
+                    <div>
+                        <span class="label-text text-base-content font-medium">Register
+                            Commands</span>
+                        <p class="text-xs text-base-content/50">Re-register all slash commands with
+                            Discord</p>
+                    </div>
+                </label>
+            </div>
+
+            <div class="form-control">
+                <label class="label cursor-pointer justify-start gap-4">
+                    <input type="checkbox" id="restart-update" class="checkbox checkbox-primary" />
+                    <div>
+                        <span class="label-text text-base-content font-medium">Update</span>
+                        <p class="text-xs text-base-content/50">Check for and apply updates before
+                            restarting</p>
+                    </div>
+                </label>
+            </div>
+
+            <div class="modal-action">
+                <form method="dialog">
+                    <button class="btn btn-ghost">Cancel</button>
+                </form>
+                <button class="btn btn-primary" onclick="restartServer()">Confirm Restart</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+    {{ end }}
+
     <!-- Background Image - full height, aligned right, maintains aspect ratio -->
     <div class="absolute inset-0 -z-10">
         <img src="{{ .Background }}" alt="" class="absolute top-0 right-0 h-full w-auto object-cover object-right"
@@ -24,7 +84,7 @@
     </div>
 
     <!-- Main Content Container -->
-    <div class="min-h-screen flex items-start justify-center lg:justify-start p-4 md:p-8 lg:p-12">
+    <div class="h-screen flex items-start justify-center lg:justify-start p-4 md:p-8 lg:p-12">
 
         <!-- Settings Island -->
         <div class="w-full max-w-lg lg:max-w-xl">
@@ -34,7 +94,7 @@
                 <!-- Settings Tab (default open) -->
                 <input type="radio" name="settings_tabs" class="tab" aria-label="Settings" checked="checked" />
                 <div
-                    class="tab-content bg-base-100/90 backdrop-blur-sm border-base-300 rounded-box rounded-tl-none p-6">
+                    class="tab-content bg-base-100/90 backdrop-blur-sm border-base-300 rounded-box rounded-tl-none p-6 max-h-[80vh] overflow-y-auto">
                     <div class="space-y-6">
                         <!-- Header with avatar -->
                         <div class="flex items-center gap-4">
@@ -71,9 +131,10 @@
                                     .User.BackupOptOut }}checked="checked" {{ end }} />
                                 <span class="label-text text-base-content select-none">Skip Backups</span>
                                 <div class="tooltip tooltip-right"
-                                    data-tip="Your messages won't be saved during daily channel backups. Attachments you post also won't be archived.">
+                                    data-tip="Your messages and their uploaded attachments won't be included in the daily updated server backups. This does NOT affect anti link rot services.">
                                     <span class="text-base-content/50 cursor-help">ⓘ</span>
                                 </div>
+                                <span class="status hidden" role="status" aria-live="polite"></span>
                             </label>
                         </div>
 
@@ -87,6 +148,7 @@
                                     data-tip="When the bot uses AI to chat in channels, your messages will be replaced with a placeholder instead of being included in the conversation context.">
                                     <span class="text-base-content/50 cursor-help">ⓘ</span>
                                 </div>
+                                <span class="status hidden" role="status" aria-live="polite"></span>
                             </label>
                         </div>
 
@@ -96,56 +158,61 @@
                         <div class="grid grid-cols-3 gap-3">
                             <!-- Reddit -->
                             <div class="form-control bg-base-200/50 rounded-lg p-3">
-                                <label class="label cursor-pointer flex-col gap-2">
+                                <label class="label cursor-pointer justify-start gap-3">
                                     <input type="checkbox" id="auto-expand-reddit"
                                         class="toggle toggle-sm toggle-primary" {{ if .User.AutoExpand.Reddit
                                         }}checked="checked" {{ end }} />
-                                    <span class="label-text text-base-content text-sm select-none">Reddit</span>
+                                    <span class="label-text text-base-content text-sm select-none flex-1">Reddit</span>
+                                    <span class="status hidden" role="status" aria-live="polite"></span>
                                 </label>
                             </div>
 
                             <!-- YouTube Shorts -->
                             <div class="form-control bg-base-200/50 rounded-lg p-3">
-                                <label class="label cursor-pointer flex-col gap-2">
+                                <label class="label cursor-pointer justify-start gap-3">
                                     <input type="checkbox" id="auto-expand-youtube-shorts"
                                         class="toggle toggle-sm toggle-primary" {{ if .User.AutoExpand.YouTubeShorts
                                         }}checked="checked" {{ end }} />
-                                    <span class="label-text text-base-content text-sm select-none">YT Shorts</span>
+                                    <span class="label-text text-base-content text-sm select-none flex-1">YT
+                                        Shorts</span>
+                                    <span class="status hidden" role="status" aria-live="polite"></span>
                                 </label>
                             </div>
 
                             <!-- RedGifs -->
                             <div class="form-control bg-base-200/50 rounded-lg p-3">
-                                <label class="label cursor-pointer flex-col gap-2">
+                                <label class="label cursor-pointer justify-start gap-3">
                                     <input type="checkbox" id="auto-expand-redgifs"
                                         class="toggle toggle-sm toggle-primary" {{ if .User.AutoExpand.RedGifs
                                         }}checked="checked" {{ end }} />
-                                    <span class="label-text text-base-content text-sm select-none">RedGifs</span>
+                                    <span class="label-text text-base-content text-sm select-none flex-1">RedGifs</span>
+                                    <span class="status hidden" role="status" aria-live="polite"></span>
                                 </label>
                             </div>
                         </div>
 
                         <p class="text-base-content/50 text-xs">
                             When enabled, if your message contains only a link, the bot will replace
-                            it with the embedded media (video, image, etc.) from that platform.
+                            it with the embedded media (video, image, etc.) from that link.
                         </p>
                     </div>
                 </div>
 
                 <!-- About Tab -->
                 <input type="radio" name="settings_tabs" class="tab" aria-label="About" />
-                <div class="tab-content bg-base-100/90 backdrop-blur-sm border-base-300 rounded-box p-6">
+                <div
+                    class="tab-content bg-base-100/90 backdrop-blur-sm border-base-300 rounded-box p-6 max-h-[80vh] overflow-y-auto">
                     <div class="space-y-6">
                         <!-- Header with bio image -->
-                        <div class="flex flex-col items-center text-center gap-4">
-                            {{ if .BioImageURL }}
-                            <div class="avatar">
-                                <div class="w-24 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-                                    <img src="{{ .BioImageURL }}" alt="Halsey" />
+                        <div class="flex flex-row items-center gap-6">
+                            {{ if .AvatarURL }}
+                            <div class="avatar flex-shrink-0">
+                                <div class="w-24 rounded">
+                                    <img src="{{ .AvatarURL }}" alt="Halsey" />
                                 </div>
                             </div>
                             {{ end }}
-                            <div>
+                            <div class="text-left">
                                 <h2 class="text-2xl font-bold text-base-content">Hello, I'm Halsey.</h2>
                                 <p class="text-base-content/70 mt-1">Your digital assistant, ultimate archivist, and
                                     official hoarder of human weirdness.</p>
@@ -197,7 +264,8 @@
                 <!-- Admin Tab (hidden unless admin) -->
                 {{ if .User.IsAdmin }}
                 <input type="radio" name="settings_tabs" class="tab" aria-label="Admin" />
-                <div class="tab-content bg-base-100/90 backdrop-blur-sm border-base-300 rounded-box p-6">
+                <div
+                    class="tab-content bg-base-100/90 backdrop-blur-sm border-base-300 rounded-box p-6 max-h-[80vh] overflow-y-auto">
                     <div class="space-y-6">
                         <div>
                             <h2 class="text-2xl font-bold text-base-content">Admin Panel</h2>
@@ -239,62 +307,32 @@
                             </button>
                         </div>
 
-                        <!-- Restart Modal -->
-                        <dialog id="restart-modal" class="modal">
-                            <div class="modal-box">
-                                <h3 class="font-bold text-lg">Restart Options</h3>
-                                <p class="py-4 text-base-content/70">Configure what should happen during the restart.
-                                </p>
-
-                                <div class="form-control">
-                                    <label class="label cursor-pointer justify-start gap-4">
-                                        <input type="checkbox" id="restart-register-commands"
-                                            class="checkbox checkbox-primary" />
-                                        <div>
-                                            <span class="label-text text-base-content font-medium">Register
-                                                Commands</span>
-                                            <p class="text-xs text-base-content/50">Re-register all slash commands with
-                                                Discord</p>
-                                        </div>
-                                    </label>
-                                </div>
-
-                                <div class="form-control">
-                                    <label class="label cursor-pointer justify-start gap-4">
-                                        <input type="checkbox" id="restart-update" class="checkbox checkbox-primary" />
-                                        <div>
-                                            <span class="label-text text-base-content font-medium">Update</span>
-                                            <p class="text-xs text-base-content/50">Check for and apply updates before
-                                                restarting</p>
-                                        </div>
-                                    </label>
-                                </div>
-
-                                <div class="modal-action">
-                                    <form method="dialog">
-                                        <button class="btn btn-ghost">Cancel</button>
-                                    </form>
-                                    <button class="btn btn-primary" onclick="restartServer()">Confirm Restart</button>
-                                </div>
-                            </div>
-                            <form method="dialog" class="modal-backdrop">
-                                <button>close</button>
-                            </form>
-                        </dialog>
-
                         <div class="divider">Configuration</div>
+
+                        <!-- Restart Required Notice (hidden by default) -->
+                        <div id="restart-required-notice" class="alert alert-warning hidden">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span>Configuration changes will take effect after a restart.</span>
+                        </div>
 
                         <!-- Log Level -->
                         <div class="form-control">
                             <label class="label">
                                 <span class="label-text text-base-content font-medium">Log Level</span>
                             </label>
-                            <select id="admin-log-level" class="select select-bordered w-full">
-                                <option value="debug" {{ if eq .LogLevel "debug" }}selected{{ end }}>Debug</option>
-                                <option value="info" {{ if eq .LogLevel "info" }}selected{{ end }}>Info</option>
-                                <option value="warn" {{ if eq .LogLevel "warn" }}selected{{ end }}>Warn</option>
-                                <option value="error" {{ if eq .LogLevel "error" }}selected{{ end }}>Error</option>
-                            </select>
+                            <div class="flex gap-2 items-center">
+                                <select id="admin-log-level" class="select select-bordered flex-1">
+                                    <option value="debug" {{ if eq .LogLevel "debug" }}selected{{ end }}>Debug</option>
+                                    <option value="info" {{ if eq .LogLevel "info" }}selected{{ end }}>Info</option>
+                                    <option value="warn" {{ if eq .LogLevel "warn" }}selected{{ end }}>Warn</option>
+                                    <option value="error" {{ if eq .LogLevel "error" }}selected{{ end }}>Error</option>
+                                </select>
+                                <span class="status hidden" role="status" aria-live="polite"></span>
+                            </div>
                         </div>
 
                         <!-- Host -->
@@ -302,8 +340,11 @@
                             <label class="label">
                                 <span class="label-text text-base-content font-medium">Host</span>
                             </label>
-                            <input type="text" id="admin-host" class="input input-bordered w-full" value="{{ .Host }}"
-                                placeholder="localhost or 0.0.0.0" />
+                            <div class="flex gap-2 items-center">
+                                <input type="text" id="admin-host" class="input input-bordered flex-1"
+                                    value="{{ .Host }}" placeholder="localhost or 0.0.0.0" />
+                                <span class="status hidden" role="status" aria-live="polite"></span>
+                            </div>
                         </div>
 
                         <!-- Port -->
@@ -311,8 +352,11 @@
                             <label class="label">
                                 <span class="label-text text-base-content font-medium">Port</span>
                             </label>
-                            <input type="number" id="admin-port" class="input input-bordered w-full" value="{{ .Port }}"
-                                placeholder="8080" min="1" max="65535" />
+                            <div class="flex gap-2 items-center">
+                                <input type="number" id="admin-port" class="input input-bordered flex-1"
+                                    value="{{ .Port }}" placeholder="8080" min="1" max="65535" />
+                                <span class="status hidden" role="status" aria-live="polite"></span>
+                            </div>
                         </div>
 
                         <!-- Proxy Port -->
@@ -321,8 +365,11 @@
                                 <span class="label-text text-base-content font-medium">Proxy Port</span>
                                 <span class="label-text-alt text-base-content/50">0 = no proxy</span>
                             </label>
-                            <input type="number" id="admin-proxy-port" class="input input-bordered w-full"
-                                value="{{ .ProxyPort }}" placeholder="0" min="0" max="65535" />
+                            <div class="flex gap-2 items-center">
+                                <input type="number" id="admin-proxy-port" class="input input-bordered flex-1"
+                                    value="{{ .ProxyPort }}" placeholder="0" min="0" max="65535" />
+                                <span class="status hidden" role="status" aria-live="polite"></span>
+                            </div>
                         </div>
 
                         <!-- Bot Token -->
@@ -331,22 +378,27 @@
                                 <span class="label-text text-base-content font-medium">Bot Token</span>
                                 <span class="label-text-alt text-base-content/50">Write-only for security</span>
                             </label>
-                            <input type="password" id="admin-bot-token" class="input input-bordered w-full font-mono"
-                                placeholder="Enter new token to update" />
+                            <div class="flex gap-2 items-center">
+                                <input type="password" id="admin-bot-token"
+                                    class="input input-bordered flex-1 font-mono"
+                                    placeholder="Enter new token to update" />
+                                <span class="status hidden" role="status" aria-live="polite"></span>
+                            </div>
                         </div>
 
-                        <!-- Bio Image URL -->
+                        <!-- System Prompt -->
                         <div class="form-control">
                             <label class="label">
-                                <span class="label-text text-base-content font-medium">Bio Image URL</span>
+                                <span class="label-text text-base-content font-medium">System Prompt</span>
+                                <span class="label-text-alt text-base-content/50">Global system prompt for AI chat
+                                    features</span>
                             </label>
-                            <input type="url" id="admin-bio-image" class="input input-bordered w-full"
-                                value="{{ .BioImageURL }}" placeholder="https://cdn.discordapp.com/..." />
+                            <div class="flex gap-2 items-center">
+                                <textarea id="admin-system-prompt" class="textarea flex-1 font-mono"
+                                    placeholder="You are a helpful assistant..."></textarea>
+                                <span class="status hidden" role="status" aria-live="polite"></span>
+                            </div>
                         </div>
-
-                        <p class="text-base-content/50 text-xs text-center">
-                            ⚠️ Configuration changes will take effect after a restart.
-                        </p>
 
                         <div class="divider">User Management</div>
 
@@ -354,7 +406,182 @@
 
                         <div class="divider">Guild Management</div>
 
-                        <p class="text-base-content/50 text-sm text-center italic">Coming soon...</p>
+                        {{ if .Guilds }}
+                        <div class="space-y-3">
+                            {{ range .Guilds }}
+                            {{ $g := . }}
+                            <div class="collapse collapse-arrow bg-base-200/50 rounded-lg" data-guild-id="{{ .ID }}">
+                                <input type="checkbox" />
+                                <div class="collapse-title font-medium">
+                                    {{ .Guild.Name }}
+                                    <span class="text-base-content/50 text-xs ml-2">{{ len .Channels }} channels</span>
+                                </div>
+                                <div class="collapse-content space-y-4">
+                                    <!-- Guild Settings -->
+                                    <div class="grid grid-cols-1 gap-3">
+                                        <!-- Synctube URL -->
+                                        <div class="form-control">
+                                            <label class="label py-1">
+                                                <span class="label-text text-sm">Synctube URL</span>
+                                            </label>
+                                            <div class="flex gap-2 items-center">
+                                                <input type="text" id="guild-{{ .ID }}-synctube"
+                                                    class="input input-sm input-bordered flex-1"
+                                                    value="{{ .Guild.SynctubeURL }}"
+                                                    placeholder="https://synctube.example.com/room" />
+                                                <span class="status hidden" role="status" aria-live="polite"></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Guild System Prompt -->
+                                        <div class="form-control">
+                                            <label class="label py-1">
+                                                <span class="label-text text-sm">AI System Prompt</span>
+                                                <span
+                                                    class="label-text-alt text-xs text-base-content/50">Guild-specific</span>
+                                            </label>
+                                            <div class="flex gap-2 items-center">
+                                                <textarea id="guild-{{ .ID }}-system-prompt"
+                                                    class="textarea textarea-sm textarea-bordered flex-1 font-mono text-xs"
+                                                    rows="2"
+                                                    placeholder="Override global system prompt for this guild...">{{ .Guild.SystemPrompt }}</textarea>
+                                                <span class="status hidden" role="status" aria-live="polite"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Toggle Settings -->
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <!-- Backup -->
+                                        <div class="form-control bg-base-300/30 rounded-lg p-2">
+                                            <label class="label cursor-pointer justify-start gap-2 py-0">
+                                                <input type="checkbox" id="guild-{{ .ID }}-backup"
+                                                    class="toggle toggle-xs toggle-primary" {{ if .Guild.Backup.Enabled
+                                                    }}checked="checked" {{ end }} />
+                                                <span class="label-text text-xs">Backup</span>
+                                                <span class="status hidden" role="status" aria-live="polite"></span>
+                                            </label>
+                                        </div>
+
+                                        <!-- Anti Link Rot -->
+                                        <div class="form-control bg-base-300/30 rounded-lg p-2">
+                                            <label class="label cursor-pointer justify-start gap-2 py-0">
+                                                <input type="checkbox" id="guild-{{ .ID }}-antirot"
+                                                    class="toggle toggle-xs toggle-primary" {{ if .Guild.AntiRotEnabled
+                                                    }}checked="checked" {{ end }} />
+                                                <span class="label-text text-xs">Anti-Rot</span>
+                                                <span class="status hidden" role="status" aria-live="polite"></span>
+                                            </label>
+                                        </div>
+
+                                        <!-- AI Chat -->
+                                        <div class="form-control bg-base-300/30 rounded-lg p-2">
+                                            <label class="label cursor-pointer justify-start gap-2 py-0">
+                                                <input type="checkbox" id="guild-{{ .ID }}-aichat"
+                                                    class="toggle toggle-xs toggle-primary" {{ if .Guild.AiChatEnabled
+                                                    }}checked="checked" {{ end }} />
+                                                <span class="label-text text-xs">AI Chat</span>
+                                                <span class="status hidden" role="status" aria-live="polite"></span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Channels Table -->
+                                    {{ if .Channels }}
+                                    <div class="divider text-xs my-2">Channels</div>
+                                    <div class="overflow-x-auto">
+                                        <table class="table table-xs">
+                                            <thead>
+                                                <tr>
+                                                    <th>Name</th>
+                                                    <th class="text-center">Type</th>
+                                                    <th class="text-center">Backup</th>
+                                                    <th class="text-center">
+                                                        <div class="tooltip tooltip-top" data-tip="Favorites Channel">
+                                                            <span>⭐</span>
+                                                        </div>
+                                                    </th>
+                                                    <th class="text-center">
+                                                        <div class="tooltip tooltip-top" data-tip="Bot Channel">
+                                                            <span>🤖</span>
+                                                        </div>
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <!-- None row for fav/bot channel selection -->
+                                                <tr class="hover">
+                                                    <td class="text-base-content/50 italic" colspan="3">— None —</td>
+                                                    <td class="text-center">
+                                                        <input type="radio" name="fav-channel-{{ $g.ID }}" value="0"
+                                                            class="radio radio-xs radio-warning guild-fav-channel"
+                                                            data-guild-id="{{ $g.ID }}" {{ if eq
+                                                            $g.Guild.FavChannelID.String "0" }}checked{{ end }} />
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <input type="radio" name="bot-channel-{{ $g.ID }}" value="0"
+                                                            class="radio radio-xs radio-info guild-bot-channel"
+                                                            data-guild-id="{{ $g.ID }}" {{ if eq
+                                                            $g.Guild.BotChannelID.String "0" }}checked{{ end }} />
+                                                    </td>
+                                                </tr>
+                                                {{ range .Channels }}
+                                                <tr class="hover {{ if .Channel.Deleted }}opacity-50{{ end }}">
+                                                    <td>
+                                                        <div class="tooltip tooltip-right" data-tip="{{ .ID }}">
+                                                            <span
+                                                                class="{{ if .Channel.Deleted }}line-through text-base-content/50{{ end }}">
+                                                                {{ .Channel.Name }}
+                                                            </span>
+                                                            {{ if .Channel.Deleted }}
+                                                            <span class="badge badge-xs badge-ghost ml-1">deleted</span>
+                                                            {{ end }}
+                                                        </div>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        {{ if eq .Channel.Type 0 }}📝{{ else if eq .Channel.Type 2
+                                                        }}🔊{{ else if eq .Channel.Type 4 }}📁{{ else if eq
+                                                        .Channel.Type 5 }}📢{{ else if eq .Channel.Type 15 }}🧵{{ else
+                                                        }}#{{ end }}
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <input type="checkbox" id="channel-{{ .ID }}-backup"
+                                                            class="checkbox checkbox-xs checkbox-primary channel-backup"
+                                                            data-channel-id="{{ .ID }}" {{ if .Channel.Backup.Enabled
+                                                            }}checked="checked" {{ end }} {{ if .Channel.Deleted
+                                                            }}disabled{{ end }} />
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <input type="radio" name="fav-channel-{{ $g.ID }}"
+                                                            value="{{ .ID }}"
+                                                            class="radio radio-xs radio-warning guild-fav-channel"
+                                                            data-guild-id="{{ $g.ID }}" {{ if eq $g.Guild.FavChannelID
+                                                            .ID }}checked{{ end }} {{ if .Channel.Deleted }}disabled{{
+                                                            end }} />
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <input type="radio" name="bot-channel-{{ $g.ID }}"
+                                                            value="{{ .ID }}"
+                                                            class="radio radio-xs radio-info guild-bot-channel"
+                                                            data-guild-id="{{ $g.ID }}" {{ if eq $g.Guild.BotChannelID
+                                                            .ID }}checked{{ end }} {{ if .Channel.Deleted }}disabled{{
+                                                            end }} />
+                                                    </td>
+                                                </tr>
+                                                {{ end }}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {{ else }}
+                                    <p class="text-base-content/50 text-xs text-center italic">No channels found</p>
+                                    {{ end }}
+                                </div>
+                            </div>
+                            {{ end }}
+                        </div>
+                        {{ else }}
+                        <p class="text-base-content/50 text-sm text-center italic">No guilds found</p>
+                        {{ end }}
                     </div>
                 </div>
                 {{ end }}

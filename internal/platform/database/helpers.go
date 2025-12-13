@@ -298,3 +298,169 @@ func CleanSessions(db *wrap.DB) error {
 		return Keep, nil
 	})
 }
+
+// GuildWithID pairs a guild ID with its data for template rendering.
+type GuildWithID struct {
+	ID       snowflake.ID
+	Guild    Guild
+	Channels []ChannelWithID
+}
+
+// ChannelWithID pairs a channel ID with its data for template rendering.
+type ChannelWithID struct {
+	ID      snowflake.ID
+	Channel Channel
+}
+
+// ViewAllGuildsWithChannels retrieves all guilds with their associated channels.
+// Channels are grouped by guild ID and sorted (non-deleted first).
+//
+// WARNING: Starts TWO transactions. Avoid calling within a transaction.
+func ViewAllGuildsWithChannels(db *wrap.DB) ([]GuildWithID, error) {
+	// First, collect all guilds
+	guilds := make(map[snowflake.ID]Guild)
+	if err := ForEach(db, GuildsDBIName, func(key []byte, guild *Guild) (ForEachAction, error) {
+		id, err := snowflake.Parse(string(key))
+		if err != nil {
+			return Keep, fmt.Errorf("failed to parse guild ID: %w", err)
+		}
+		guilds[id] = *guild
+		return Keep, nil
+	}); err != nil {
+		return nil, fmt.Errorf("failed to iterate guilds: %w", err)
+	}
+
+	// Then collect all channels, grouped by guild
+	channelsByGuild := make(map[snowflake.ID][]ChannelWithID)
+	if err := ForEach(db, ChannelsDBIName, func(key []byte, channel *Channel) (ForEachAction, error) {
+		id, err := snowflake.Parse(string(key))
+		if err != nil {
+			return Keep, fmt.Errorf("failed to parse channel ID: %w", err)
+		}
+		channelsByGuild[channel.GuildID] = append(channelsByGuild[channel.GuildID], ChannelWithID{
+			ID:      id,
+			Channel: *channel,
+		})
+		return Keep, nil
+	}); err != nil {
+		return nil, fmt.Errorf("failed to iterate channels: %w", err)
+	}
+
+	// Build result slice
+	result := make([]GuildWithID, 0, len(guilds))
+	for id, guild := range guilds {
+		channels := channelsByGuild[id]
+		// Sort channels: non-deleted first, then by name
+		sortChannels(channels)
+		result = append(result, GuildWithID{
+			ID:       id,
+			Guild:    guild,
+			Channels: channels,
+		})
+	}
+
+	// Sort guilds by name for consistent ordering
+	sortGuilds(result)
+
+	return result, nil
+}
+
+// sortChannels sorts channels in Discord order: non-deleted first, then by category hierarchy and position.
+// Categories (type 4) come first with their children grouped underneath, sorted by position.
+func sortChannels(channels []ChannelWithID) {
+	// Build a map of category ID -> position for ordering categories
+	categoryPos := make(map[snowflake.ID]int) // category ID -> position
+	for _, ch := range channels {
+		if ch.Channel.Type == 4 { // GuildCategory
+			categoryPos[ch.ID] = ch.Channel.Position
+		}
+	}
+
+	// Bubble sort with custom comparison
+	for i := 0; i < len(channels)-1; i++ {
+		for j := i + 1; j < len(channels); j++ {
+			if shouldSwap(channels[i], channels[j], categoryPos) {
+				channels[i], channels[j] = channels[j], channels[i]
+			}
+		}
+	}
+}
+
+// shouldSwap returns true if channel a should come after channel b.
+func shouldSwap(a, b ChannelWithID, categoryPos map[snowflake.ID]int) bool {
+	// 1. Non-deleted channels come first
+	if a.Channel.Deleted && !b.Channel.Deleted {
+		return true
+	}
+	if !a.Channel.Deleted && b.Channel.Deleted {
+		return false
+	}
+
+	// 2. Get the parent category ID for each channel (or 0 for categories/uncategorized)
+	aParentID := getParentCategoryID(a)
+	bParentID := getParentCategoryID(b)
+
+	// 3. If they're in different parent groups, sort by the parent category's position
+	if aParentID != bParentID {
+		aPosValue := getParentPositionValue(a, aParentID, categoryPos)
+		bPosValue := getParentPositionValue(b, bParentID, categoryPos)
+		if aPosValue != bPosValue {
+			return aPosValue > bPosValue
+		}
+		// Same position but different groups: use parent ID as tiebreaker for stable grouping
+		return aParentID > bParentID
+	}
+
+	// 4. Same parent group: category headers come before their children
+	aIsCategory := a.Channel.Type == 4
+	bIsCategory := b.Channel.Type == 4
+
+	if aIsCategory && !bIsCategory {
+		return false // category comes first
+	}
+	if !aIsCategory && bIsCategory {
+		return true // category comes first
+	}
+
+	// 5. Both are same type within same parent: sort by position
+	return a.Channel.Position > b.Channel.Position
+}
+
+// getParentCategoryID returns the parent category ID for grouping.
+// - Categories: return their own ID (they define their own group)
+// - Children: return their ParentID
+// - Uncategorized (no parent, not category): return 0
+func getParentCategoryID(ch ChannelWithID) snowflake.ID {
+	if ch.Channel.Type == 4 {
+		// Categories define their own group
+		return ch.ID
+	}
+	// Non-categories use their parent (or 0 if uncategorized)
+	return ch.Channel.ParentID
+}
+
+// getParentPositionValue returns a sort value for ordering parent groups.
+// - Uncategorized (parentID=0): return -1 (appear first)
+// - Categories: return their position
+// - Children: return their parent category's position
+func getParentPositionValue(ch ChannelWithID, parentID snowflake.ID, categoryPos map[snowflake.ID]int) int {
+	if parentID == 0 {
+		return -1 // uncategorized goes first
+	}
+	if pos, ok := categoryPos[parentID]; ok {
+		return pos
+	}
+	// Orphaned (parent not in our data)
+	return -1
+}
+
+// sortGuilds sorts guilds alphabetically by name.
+func sortGuilds(guilds []GuildWithID) {
+	for i := 0; i < len(guilds)-1; i++ {
+		for j := i + 1; j < len(guilds); j++ {
+			if guilds[i].Guild.Name > guilds[j].Guild.Name {
+				guilds[i], guilds[j] = guilds[j], guilds[i]
+			}
+		}
+	}
+}

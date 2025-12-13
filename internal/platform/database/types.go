@@ -39,9 +39,8 @@ type Configuration struct {
 
 	RestartCtx RestartContext `json:"restartContext"`
 
-	BotToken     string       `json:"botToken"`
-	BotChannelID snowflake.ID `json:"botChannelID"`
-	BioImageURL  string       `json:"bioImageURL"` // URL to an image for /about
+	BotToken     string `json:"botToken"`
+	SystemPrompt string `json:"systemPrompt"` // global system prompt for AI chat features
 }
 
 type User struct {
@@ -61,11 +60,13 @@ type ChannelBackup struct {
 }
 
 type Channel struct {
-	GuildID snowflake.ID        `json:"guildID"`
-	Name    string              `json:"name"`
-	Type    discord.ChannelType `json:"type"`
-	Backup  ChannelBackup       `json:"backup"`
-	Deleted bool                `json:"deleted"` // for knowing to skip backup
+	GuildID  snowflake.ID        `json:"guildID"`
+	Name     string              `json:"name"`
+	Type     discord.ChannelType `json:"type"`
+	Position int                 `json:"position"` // position in the channel list, guildThreads are always 0
+	ParentID snowflake.ID        `json:"parentID"` // category ID, 0 if none
+	Backup   ChannelBackup       `json:"backup"`
+	Deleted  bool                `json:"deleted"` // for knowing to skip backup
 }
 
 type GuildBackup struct {
@@ -74,12 +75,15 @@ type GuildBackup struct {
 }
 
 type Guild struct {
-	Name         string              `json:"name"`
-	FavChannelID snowflake.ID        `json:"favoriteChannelID"`
-	SynctubeURL  string              `json:"synctubeURL"`
-	PremiumTier  discord.PremiumTier `json:"premiumTier"`
-	AntiRot      bool                `json:"antiRot"`
-	Backup       GuildBackup         `json:"backup"`
+	Name           string              `json:"name"`
+	BotChannelID   snowflake.ID        `json:"botChannelID"`
+	FavChannelID   snowflake.ID        `json:"favoriteChannelID"`
+	SynctubeURL    string              `json:"synctubeURL"`
+	PremiumTier    discord.PremiumTier `json:"premiumTier"`
+	Backup         GuildBackup         `json:"backup"`
+	AntiRotEnabled bool                `json:"antiRotEnabled"`
+	AiChatEnabled  bool                `json:"aiChatEnabled"`
+	SystemPrompt   string              `json:"systemPrompt"` // guild-specific system prompt for AI chat features
 }
 
 type Session struct {

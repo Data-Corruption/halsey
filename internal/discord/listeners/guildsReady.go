@@ -45,6 +45,12 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, registerCommands bool)
 			c.GuildID = channel.GuildID()
 			c.Name = channel.Name()
 			c.Type = channel.Type()
+			c.Position = channel.Position()
+			if parentID := channel.ParentID(); parentID != nil {
+				c.ParentID = *parentID
+			} else {
+				c.ParentID = snowflake.ID(0)
+			}
 			// since these are snowflake based, making a channel with the same name after deleting
 			// isn't like remaking it. So we don't need to set deleted to false or have any
 			// system for reintegrating deleted channels.

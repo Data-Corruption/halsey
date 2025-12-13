@@ -422,8 +422,8 @@ func shouldSwap(a, b ChannelWithID, categoryPos map[snowflake.ID]int) bool {
 
 	// 3. If they're in different parent groups, sort by the parent category's position
 	if aParentID != bParentID {
-		aPosValue := getParentPositionValue(a, aParentID, categoryPos)
-		bPosValue := getParentPositionValue(b, bParentID, categoryPos)
+		aPosValue := getParentPositionValue(aParentID, categoryPos)
+		bPosValue := getParentPositionValue(bParentID, categoryPos)
 		if aPosValue != bPosValue {
 			return aPosValue > bPosValue
 		}
@@ -463,7 +463,7 @@ func getParentCategoryID(ch ChannelWithID) snowflake.ID {
 // - Uncategorized (parentID=0): return -1 (appear first)
 // - Categories: return their position
 // - Children: return their parent category's position
-func getParentPositionValue(ch ChannelWithID, parentID snowflake.ID, categoryPos map[snowflake.ID]int) int {
+func getParentPositionValue(parentID snowflake.ID, categoryPos map[snowflake.ID]int) int {
 	if parentID == 0 {
 		return -1 // uncategorized goes first
 	}

@@ -63,6 +63,86 @@ const THEME_KEY = 'HALSEY_THEME';
 
 // admin panel functions ------------------------------------------------------
 
+function openBackupsModal() {
+    const modal = document.getElementById('backups-modal');
+    const loading = document.getElementById('backups-loading');
+    const content = document.getElementById('backups-content');
+    const empty = document.getElementById('backups-empty');
+    const error = document.getElementById('backups-error');
+    const errorMessage = document.getElementById('backups-error-message');
+
+    // Reset state
+    loading.classList.remove('hidden');
+    content.classList.add('hidden');
+    empty.classList.add('hidden');
+    error.classList.add('hidden');
+    content.innerHTML = '';
+
+    // Show modal
+    modal.showModal();
+
+    // Fetch backups
+    fetch('/settings/backups')
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        })
+        .then(backups => {
+            loading.classList.add('hidden');
+
+            if (!backups || backups.length === 0) {
+                empty.classList.remove('hidden');
+                return;
+            }
+
+            // Build backup items
+            backups.forEach(backup => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between bg-base-200/50 rounded-lg p-3';
+
+                const info = document.createElement('div');
+                info.className = 'flex-1';
+
+                const name = document.createElement('div');
+                name.className = 'font-medium text-base-content';
+                name.textContent = backup.guildName;
+
+                const lastRun = document.createElement('div');
+                lastRun.className = 'text-xs text-base-content/50';
+                if (backup.lastRun) {
+                    const date = new Date(backup.lastRun);
+                    lastRun.textContent = 'Last backup: ' + date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                } else {
+                    lastRun.textContent = 'No backup run yet';
+                }
+
+                info.appendChild(name);
+                info.appendChild(lastRun);
+
+                const downloadBtn = document.createElement('a');
+                downloadBtn.href = backup.downloadLink;
+                downloadBtn.className = 'btn btn-sm btn-primary';
+                downloadBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download
+                `;
+
+                item.appendChild(info);
+                item.appendChild(downloadBtn);
+                content.appendChild(item);
+            });
+
+            content.classList.remove('hidden');
+        })
+        .catch(err => {
+            loading.classList.add('hidden');
+            error.classList.remove('hidden');
+            errorMessage.textContent = err.message || 'Failed to load backups.';
+        });
+}
+
 function stopServer() {
     if (!confirm('Are you sure you want to stop the server? You will lose access to this page.')) {
         return;
@@ -354,6 +434,9 @@ function pollForRestart(updateRequested = false) {
             if (!guildId) return;
 
             const endpoint = `/settings/guild/${guildId}`;
+
+            // Backup Password
+            handleTextInputById(`guild-${guildId}-backup-password`, endpoint, 'backupPassword', 500, { skipEmpty: true });
 
             // Synctube URL
             handleTextInputById(`guild-${guildId}-synctube`, endpoint, 'synctubeURL', 500);

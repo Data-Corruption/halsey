@@ -47,6 +47,7 @@ type User struct {
 	IsAdmin      bool        `json:"isAdmin"`
 	Username     string      `json:"username"`
 	AvatarURL    *string     `json:"avatarURL"`    // *string marshals as {null | "" | "x"}
+	BackupAccess bool        `json:"backupAccess"` // allows user to download backups of guilds they are in
 	BackupOptOut bool        `json:"backupOptOut"` // skips backing up messages from this user
 	AiChatOptOut bool        `json:"aiChatOptOut"` // excludes this user from AI chat features
 	AutoExpand   DomainBools `json:"autoExpand"`
@@ -70,12 +71,15 @@ type Channel struct {
 }
 
 type GuildBackup struct {
-	Enabled bool   `json:"enabled"`
-	RunID   string `json:"runID"` // for knowing if a backup is in progress, synchronizing the channels debugging, etc.
+	Enabled  bool      `json:"enabled"`
+	Password string    `json:"password"` // after daily backups are completed, this is used to create an encrypted zip file
+	RunID    string    `json:"runID"`    // for knowing if a backup is in progress, synchronizing the channels debugging, etc.
+	LastRun  time.Time `json:"lastRun"`  // for UI
 }
 
 type Guild struct {
 	Name           string              `json:"name"`
+	Members        []snowflake.ID      `json:"members"` // updated on guildReady and during guildMemberAdd / guildMemberLeave
 	BotChannelID   snowflake.ID        `json:"botChannelID"`
 	FavChannelID   snowflake.ID        `json:"favoriteChannelID"`
 	SynctubeURL    string              `json:"synctubeURL"`

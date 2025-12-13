@@ -271,6 +271,25 @@ func ViewGuild(db *wrap.DB, guildID snowflake.ID) (*Guild, error) {
 	return View[Guild](db, GuildsDBIName, []byte(guildID.String()))
 }
 
+// ViewGuilds retrieves a copy of all guilds from the database.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func ViewGuilds(db *wrap.DB) (map[snowflake.ID]*Guild, error) {
+	guilds := make(map[snowflake.ID]*Guild)
+	if err := ForEach(db, GuildsDBIName, func(key []byte, guild *Guild) (ForEachAction, error) {
+		id, err := snowflake.Parse(string(key))
+		if err != nil {
+			return Keep, fmt.Errorf("failed to parse guild ID: %w", err)
+		}
+		guildCopy := *guild
+		guilds[id] = &guildCopy
+		return Keep, nil
+	}); err != nil {
+		return nil, fmt.Errorf("failed to iterate guilds: %w", err)
+	}
+	return guilds, nil
+}
+
 func defaultGuild() Guild {
 	return Guild{}
 }
@@ -324,6 +343,7 @@ func ViewAllGuildsWithChannels(db *wrap.DB) ([]GuildWithID, error) {
 		if err != nil {
 			return Keep, fmt.Errorf("failed to parse guild ID: %w", err)
 		}
+		guild.Backup.Password = "" // don't expose this in the UI
 		guilds[id] = *guild
 		return Keep, nil
 	}); err != nil {

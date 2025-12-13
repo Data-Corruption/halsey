@@ -13,6 +13,7 @@ import (
 	"sprout/internal/platform/http/server/router/images"
 	"sprout/internal/platform/http/server/router/js"
 	"strings"
+	"time"
 
 	"github.com/Data-Corruption/stdx/xhttp"
 	"github.com/disgoorg/snowflake/v2"
@@ -154,6 +155,89 @@ func settingsRoutes(a *app.App, r *chi.Mux) {
 			}
 
 			w.WriteHeader(http.StatusOK)
+		})
+
+		// Get download links for backups of guilds the user is a member of
+		s.Get("/backups", func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+
+			// get session from context
+			session, ok := auth.SessionFromContext(r.Context())
+			if !ok {
+				xhttp.Error(r.Context(), w, auth.ErrNoSessionInContext)
+				return
+			}
+			if !(session.User.IsAdmin || session.User.BackupAccess) {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 403, Msg: "forbidden"})
+				return
+			}
+
+			// Response struct for each guild backup
+			type GuildBackupInfo struct {
+				GuildName    string `json:"guildName"`
+				DownloadLink string `json:"downloadLink"`
+				LastRun      string `json:"lastRun"` // ISO 8601 format or empty
+			}
+
+			var backups []GuildBackupInfo
+
+			// Get all guilds from the database (with channels already, but we just need guild info)
+			guilds, err := database.ViewGuilds(a.DB)
+			if err != nil {
+				xhttp.Error(r.Context(), w, err)
+				return
+			}
+
+			// Iterate through all guilds from the database
+			token := ""
+			for guildID, guild := range guilds {
+				// Check if user is a member of this guild by checking the Members slice
+				isMember := false
+				for _, memberID := range guild.Members {
+					if memberID == session.UserID {
+						isMember = true
+						break
+					}
+				}
+				if !isMember {
+					continue
+				}
+
+				// Skip guilds where backup is not enabled
+				if !guild.Backup.Enabled {
+					continue
+				}
+
+				// Generate a param session token for this download, only need one for all guilds
+				if token == "" {
+					token, err = a.AuthManager.NewParamSession(a.DB, session.UserID)
+					if err != nil {
+						a.Log.Warnf("failed to create param session for backup: %v", err)
+						continue
+					}
+				}
+
+				// Build the download link
+				downloadLink := fmt.Sprintf("/download/backup/%s?%s=%s", guildID.String(), auth.ParamName, token)
+
+				// Format LastRun time in RFC3339 (ISO 8601) for JavaScript localization
+				lastRunStr := ""
+				if !guild.Backup.LastRun.IsZero() {
+					lastRunStr = guild.Backup.LastRun.Format(time.RFC3339)
+				}
+
+				backups = append(backups, GuildBackupInfo{
+					GuildName:    guild.Name,
+					DownloadLink: downloadLink,
+					LastRun:      lastRunStr,
+				})
+			}
+
+			// Return JSON response
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(backups); err != nil {
+				xhttp.Error(r.Context(), w, err)
+			}
 		})
 
 		// admin only routes.
@@ -301,6 +385,7 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 			// Parse body - all fields are optional
 			var body struct {
 				SynctubeURL    *string       `json:"synctubeURL"`
+				BackupPassword *string       `json:"backupPassword"`
 				BackupEnabled  *bool         `json:"backupEnabled"`
 				AntiRotEnabled *bool         `json:"antiRotEnabled"`
 				AiChatEnabled  *bool         `json:"aiChatEnabled"`
@@ -318,6 +403,9 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 			if _, err := database.UpsertGuild(a.DB, guildID, func(guild *database.Guild) error {
 				if body.SynctubeURL != nil {
 					guild.SynctubeURL = *body.SynctubeURL
+				}
+				if body.BackupPassword != nil {
+					guild.Backup.Password = *body.BackupPassword
 				}
 				if body.BackupEnabled != nil {
 					guild.Backup.Enabled = *body.BackupEnabled

@@ -75,8 +75,10 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, registerCommands bool)
 	}
 
 	// ensure all users are in the database (fetch via REST since cache only has event-based members)
+	// also track members per guild for the Members field
 	foundUsers := []snowflake.ID{}
 	for guild := range a.Client.Caches.GuildCache().All() {
+		guildMembers := []snowflake.ID{} // members for this specific guild
 		var after snowflake.ID
 		for {
 			members, err := a.Client.Rest.GetMembers(guild.ID, 1000, after)
@@ -88,20 +90,26 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, registerCommands bool)
 				break
 			}
 			for _, member := range members {
-				if slices.Contains(foundUsers, member.User.ID) || member.User.Bot {
+				if member.User.Bot {
 					continue
 				}
-				foundUsers = append(foundUsers, member.User.ID)
-				if created, err := database.UpsertUser(a.DB, member.User.ID, func(u *database.User) error {
-					u.Username = member.User.Username
-					u.AvatarURL = member.User.AvatarURL()
-					return nil
-				}); err != nil {
-					a.Log.Errorf("failed to upsert user %s: %s", member.User.ID, err)
-				} else if created {
-					a.Log.Infof("New user detected: %s (%s), adding to database...", member.User.Username, member.User.ID)
-				} else {
-					a.Log.Debugf("User %s (%s) registered successfully", member.User.Username, member.User.ID)
+				// Always add to guild members list
+				guildMembers = append(guildMembers, member.User.ID)
+
+				// Only upsert user if we haven't seen them yet (first time across all guilds)
+				if !slices.Contains(foundUsers, member.User.ID) {
+					foundUsers = append(foundUsers, member.User.ID)
+					if created, err := database.UpsertUser(a.DB, member.User.ID, func(u *database.User) error {
+						u.Username = member.User.Username
+						u.AvatarURL = member.User.AvatarURL()
+						return nil
+					}); err != nil {
+						a.Log.Errorf("failed to upsert user %s: %s", member.User.ID, err)
+					} else if created {
+						a.Log.Infof("New user detected: %s (%s), adding to database...", member.User.Username, member.User.ID)
+					} else {
+						a.Log.Debugf("User %s (%s) registered successfully", member.User.Username, member.User.ID)
+					}
 				}
 			}
 			after = members[len(members)-1].User.ID
@@ -109,6 +117,16 @@ func OnGuildsReady(a *app.App, event *events.GuildsReady, registerCommands bool)
 				break // no more pages
 			}
 			time.Sleep(100 * time.Millisecond) // rate limit courtesy
+		}
+
+		// Update the guild's Members field with the complete member list
+		if _, err := database.UpsertGuild(a.DB, guild.ID, func(g *database.Guild) error {
+			g.Members = guildMembers
+			return nil
+		}); err != nil {
+			a.Log.Errorf("failed to update members for guild %s: %s", guild.ID, err)
+		} else {
+			a.Log.Debugf("Guild %s members synced: %d members", guild.Name, len(guildMembers))
 		}
 	}
 

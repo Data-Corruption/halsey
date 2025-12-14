@@ -11,10 +11,28 @@
         "plaintext": "html"
     },
     "cSpell.words": [
+        "AMDVAAPI",
+        "bitrates",
         "csync",
+        "cuda",
+        "daisyui",
+        "faststart",
         "geolocation",
+        "hwaccel",
+        "hwupload",
         "klauspost",
+        "lavfi",
+        "libx",
+        "loglevel",
+        "maxrate",
+        "movflags",
         "nosniff",
-        "SAMEORIGIN"
+        "nostats",
+        "nostdin",
+        "nvenc",
+        "SAMEORIGIN",
+        "vaapi",
+        "VAAPI",
+        "vainfo"
     ]
 }

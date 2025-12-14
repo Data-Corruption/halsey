@@ -61,7 +61,7 @@ const THEME_KEY = 'HALSEY_THEME';
     };
 })();
 
-// admin panel functions ------------------------------------------------------
+// settings -------------------------------------------------------------------
 
 function openBackupsModal() {
     const modal = document.getElementById('backups-modal');
@@ -120,8 +120,13 @@ function openBackupsModal() {
                 info.appendChild(lastRun);
 
                 const downloadBtn = document.createElement('a');
-                downloadBtn.href = backup.downloadLink;
-                downloadBtn.className = 'btn btn-sm btn-primary';
+
+                if (backup.lastRun) {
+                    downloadBtn.className = 'btn btn-sm btn-primary';
+                    downloadBtn.href = backup.downloadLink;
+                } else {
+                    downloadBtn.className = 'btn btn-sm btn-primary btn-disabled';
+                }
                 downloadBtn.innerHTML = `
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

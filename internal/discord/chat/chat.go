@@ -2,7 +2,6 @@ package chat
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -11,8 +10,9 @@ import (
 )
 
 const (
-	MAX_GEN_MSG_TOKENS    = 4096
-	MAX_INTENT_MSG_TOKENS = MAX_GEN_MSG_TOKENS / 2
+	MAX_GEN_MSG_TOKENS = 4096
+	MAX_INT_MSG_TOKENS = MAX_GEN_MSG_TOKENS / 2
+	ACTIVE_TIMEOUT     = 2 * time.Minute
 )
 
 var WAKE_PHRASES = []string{
@@ -38,6 +38,7 @@ type ChannelState struct {
 }
 
 type ChatManager struct {
+	mu       sync.RWMutex
 	channels map[snowflake.ID]*ChannelState
 }
 
@@ -64,59 +65,80 @@ func NewChatManager(ctx context.Context, closeWG *sync.WaitGroup) *ChatManager {
 }
 
 func (cm *ChatManager) UpsertChannelMessages(channelID snowflake.ID, fn func([]Message) []Message) {
+	cm.mu.Lock()
 	if _, ok := cm.channels[channelID]; !ok {
 		cm.channels[channelID] = &ChannelState{buf: make([]Message, 0)}
 	}
+	channel := cm.channels[channelID]
+	cm.mu.Unlock()
 
-	cm.channels[channelID].mu.Lock()
-	defer cm.channels[channelID].mu.Unlock()
+	channel.mu.Lock()
+	defer channel.mu.Unlock()
 
 	// update messages, evict old messages
-	cm.channels[channelID].buf = evictToBudget(fn(cm.channels[channelID].buf), MAX_GEN_MSG_TOKENS)
+	channel.buf = evictToBudget(fn(channel.buf), MAX_GEN_MSG_TOKENS)
 
 	// update newest message time
-	if len(cm.channels[channelID].buf) > 0 {
-		cm.channels[channelID].newestMsg = cm.channels[channelID].buf[len(cm.channels[channelID].buf)-1].Created
+	if len(channel.buf) > 0 {
+		channel.newestMsg = channel.buf[len(channel.buf)-1].Created
 	}
 }
 
 func (cm *ChatManager) tick() {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
 	for _, channel := range cm.channels {
-		channel.mu.Lock()
-		defer channel.mu.Unlock()
-
-		// no messages
-		if channel.newestMsg.IsZero() {
-			continue
-		}
-		// no new messages since last response
-		if !channel.lastRes.IsZero() && channel.newestMsg.Equal(channel.lastRes) || channel.newestMsg.Before(channel.lastRes) {
-			continue
-		}
-
-		// create smaller sub buf for intent classification
-		inMsgs := evictToBudget(channel.buf, MAX_INTENT_MSG_TOKENS)
-
-		// if no wake phrase detected in new messages and not active, skip
-		woke := false
-		for _, msg := range inMsgs {
-			if msg.Created.After(channel.lastRes) {
-				if slices.Contains(WAKE_PHRASES, msg.Content) {
-					woke = true
-					break
-				}
-			}
-		}
-		if !woke && time.Now().After(channel.activeUntil) {
+		msgs := channel.shouldRespond()
+		if msgs == nil {
 			continue
 		}
 
 		// TODO: Intent classification
+		// trim messages to MAX_INT_MSG_TOKENS
+		// generate intent classification
+		// if respond is true
+		// lock channel mu
+		// set lastRes and activeUntil
+		// unlock channel mu
 
 		// TODO: Response generation
-
-		fmt.Println("hi") // TODO: Remove
+		// generate response
+		// if new messages since lastRes, send response raw, else send as a reply to lastRes msg
 	}
+}
+
+// shouldRespond checks if the channel needs a response and returns the messages
+// to use for intent classification. Returns nil if no response is needed.
+func (cs *ChannelState) shouldRespond() []Message {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	// no messages
+	if cs.newestMsg.IsZero() {
+		return nil
+	}
+	// no new messages since last response
+	if !cs.lastRes.IsZero() && (cs.newestMsg.Equal(cs.lastRes) || cs.newestMsg.Before(cs.lastRes)) {
+		return nil
+	}
+
+	// check for wake phrase in new messages
+	woke := false
+	for _, msg := range cs.buf {
+		if msg.Created.After(cs.lastRes) {
+			if slices.Contains(WAKE_PHRASES, msg.Content) {
+				woke = true
+				break
+			}
+		}
+	}
+
+	if !woke && time.Now().After(cs.activeUntil) {
+		return nil
+	}
+
+	return slices.Clone(cs.buf)
 }
 
 func evictToBudget(buf []Message, maxTokens int) []Message {

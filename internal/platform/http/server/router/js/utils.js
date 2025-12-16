@@ -425,7 +425,6 @@ function pollForRestart(updateRequested = false) {
         handleTextInput('admin-port', '/settings/admin', 'port', 500, { onSuccess: showRestartNotice });
         handleTextInput('admin-proxy-port', '/settings/admin', 'proxyPort', 500, { onSuccess: showRestartNotice });
         handleTextInput('admin-bot-token', '/settings/admin', 'botToken', 500, { skipEmpty: true, onSuccess: showRestartNotice });
-        handleTextInput('admin-system-prompt', '/settings/admin', 'systemPrompt', 500, { skipEmpty: true, onSuccess: showRestartNotice });
 
         // Guild settings - wire up dynamically found guilds
         wireGuildSettings();
@@ -445,9 +444,6 @@ function pollForRestart(updateRequested = false) {
 
             // Synctube URL
             handleTextInputById(`guild-${guildId}-synctube`, endpoint, 'synctubeURL', 500);
-
-            // System Prompt
-            handleTextInputById(`guild-${guildId}-system-prompt`, endpoint, 'systemPrompt', 500);
 
             // Toggle settings
             handleToggleById(`guild-${guildId}-backup`, endpoint, 'backupEnabled');
@@ -516,6 +512,87 @@ function pollForRestart(updateRequested = false) {
                     }
                 } catch (e) {
                     console.error('Failed to update bot channel:', e);
+                }
+            });
+        });
+
+        // Wire up user settings
+        wireUserSettings();
+    }
+
+    // Wire up user permission settings
+    function wireUserSettings() {
+        // Wire up admin checkboxes
+        document.querySelectorAll('.user-admin').forEach(checkbox => {
+            const userId = checkbox.dataset.userId;
+            if (!userId) return;
+
+            const status = findStatus(checkbox);
+            checkbox.addEventListener('change', async () => {
+                showPending(status);
+                try {
+                    const res = await fetch(`/settings/user/${userId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ isAdmin: checkbox.checked })
+                    });
+                    if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(text || `HTTP ${res.status}`);
+                    }
+                    showSuccess(status);
+                } catch (e) {
+                    showError(status, e.message);
+                }
+            });
+        });
+
+        // Wire up backup access checkboxes
+        document.querySelectorAll('.user-backup').forEach(checkbox => {
+            const userId = checkbox.dataset.userId;
+            if (!userId) return;
+
+            const status = findStatus(checkbox);
+            checkbox.addEventListener('change', async () => {
+                showPending(status);
+                try {
+                    const res = await fetch(`/settings/user/${userId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ backupAccess: checkbox.checked })
+                    });
+                    if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(text || `HTTP ${res.status}`);
+                    }
+                    showSuccess(status);
+                } catch (e) {
+                    showError(status, e.message);
+                }
+            });
+        });
+
+        // Wire up AI access checkboxes
+        document.querySelectorAll('.user-ai').forEach(checkbox => {
+            const userId = checkbox.dataset.userId;
+            if (!userId) return;
+
+            const status = findStatus(checkbox);
+            checkbox.addEventListener('change', async () => {
+                showPending(status);
+                try {
+                    const res = await fetch(`/settings/user/${userId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ aiAccess: checkbox.checked })
+                    });
+                    if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(text || `HTTP ${res.status}`);
+                    }
+                    showSuccess(status);
+                } catch (e) {
+                    showError(status, e.message);
                 }
             });
         });

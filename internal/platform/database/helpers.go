@@ -215,6 +215,48 @@ func UpsertUser(db *wrap.DB, userID snowflake.ID, updateFunc func(user *User) er
 	return Upsert(db, UsersDBIName, []byte(userID.String()), defaultUser, updateFunc)
 }
 
+// UserWithID pairs a user ID with its data for template rendering.
+type UserWithID struct {
+	ID   snowflake.ID
+	User User
+}
+
+// ViewUsers retrieves all users from the database, sorted by username.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func ViewUsers(db *wrap.DB) ([]UserWithID, error) {
+	var users []UserWithID
+	if err := ForEach(db, UsersDBIName, func(key []byte, user *User) (ForEachAction, error) {
+		id, err := snowflake.Parse(string(key))
+		if err != nil {
+			return Keep, fmt.Errorf("failed to parse user ID: %w", err)
+		}
+		users = append(users, UserWithID{
+			ID:   id,
+			User: *user,
+		})
+		return Keep, nil
+	}); err != nil {
+		return nil, fmt.Errorf("failed to iterate users: %w", err)
+	}
+
+	// Sort users alphabetically by username
+	sortUsers(users)
+
+	return users, nil
+}
+
+// sortUsers sorts users alphabetically by username.
+func sortUsers(users []UserWithID) {
+	for i := 0; i < len(users)-1; i++ {
+		for j := i + 1; j < len(users); j++ {
+			if users[i].User.Username > users[j].User.Username {
+				users[i], users[j] = users[j], users[i]
+			}
+		}
+	}
+}
+
 // ViewChannel retrieves a copy of the given channel from the database.
 //
 // WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).

@@ -436,18 +436,11 @@
                             </div>
                         </div>
 
-                        <!-- System Prompt -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text text-base-content font-medium">System Prompt</span>
-                                <span class="label-text-alt text-base-content/50">Global system prompt for AI chat
-                                    features</span>
-                            </label>
-                            <div class="flex gap-2 items-center">
-                                <textarea id="admin-system-prompt" class="textarea flex-1 font-mono"
-                                    placeholder="You are a helpful assistant..."></textarea>
-                                <span class="status hidden" role="status" aria-live="polite"></span>
-                            </div>
+                        <!-- Compression HW Acceleration -->
+                        <div class="flex items-center gap-3">
+                            <span class="label-text text-base-content font-medium">HW Acceleration</span>
+                            <span class="badge badge-lg badge-ghost">{{ .HWAccel }}</span>
+                            <span class="text-xs text-base-content/50">auto-detected</span>
                         </div>
 
                         <div class="divider">Guild Management</div>
@@ -490,22 +483,6 @@
                                                     class="input input-sm input-bordered flex-1"
                                                     value="{{ .Guild.SynctubeURL }}"
                                                     placeholder="https://synctube.example.com/room" />
-                                                <span class="status hidden" role="status" aria-live="polite"></span>
-                                            </div>
-                                        </div>
-
-                                        <!-- Guild System Prompt -->
-                                        <div class="form-control">
-                                            <label class="label py-1">
-                                                <span class="label-text text-sm">AI System Prompt</span>
-                                                <span
-                                                    class="label-text-alt text-xs text-base-content/50">Guild-specific</span>
-                                            </label>
-                                            <div class="flex gap-2 items-center">
-                                                <textarea id="guild-{{ .ID }}-system-prompt"
-                                                    class="textarea textarea-sm textarea-bordered flex-1 font-mono text-xs"
-                                                    rows="2"
-                                                    placeholder="Your in {{ .Guild.Name }}, guild...">{{ .Guild.SystemPrompt }}</textarea>
                                                 <span class="status hidden" role="status" aria-live="polite"></span>
                                             </div>
                                         </div>
@@ -650,7 +627,81 @@
 
                         <div class="divider">User Management</div>
 
-                        <p class="text-base-content/50 text-sm text-center italic">Coming soon...</p>
+                        {{ if .Users }}
+                        <div class="overflow-x-auto">
+                            <table class="table table-xs">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th class="text-center">
+                                            <div class="tooltip tooltip-top" data-tip="Administrator access">
+                                                <span>Admin</span>
+                                            </div>
+                                        </th>
+                                        <th class="text-center">
+                                            <div class="tooltip tooltip-top" data-tip="Can download server backups">
+                                                <span>Backups</span>
+                                            </div>
+                                        </th>
+                                        <th class="text-center">
+                                            <div class="tooltip tooltip-top" data-tip="Access to AI features">
+                                                <span>AI</span>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {{ range .Users }}
+                                    <tr class="hover" data-user-id="{{ .ID }}">
+                                        <td>
+                                            <div class="flex items-center gap-2">
+                                                {{ if .User.AvatarURL }}
+                                                <div class="avatar">
+                                                    <div class="w-6 rounded-full">
+                                                        <img src="{{ .User.AvatarURL }}" alt="{{ .User.Username }}" />
+                                                    </div>
+                                                </div>
+                                                {{ end }}
+                                                <div class="tooltip tooltip-right" data-tip="{{ .ID }}">
+                                                    <span class="font-medium">{{ .User.Username }}</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <label class="flex items-center justify-center gap-1">
+                                                <input type="checkbox"
+                                                    class="checkbox checkbox-xs checkbox-error user-admin"
+                                                    data-user-id="{{ .ID }}" {{ if .User.IsAdmin }}checked="checked" {{
+                                                    end }} />
+                                                <span class="status hidden" role="status" aria-live="polite"></span>
+                                            </label>
+                                        </td>
+                                        <td class="text-center">
+                                            <label class="flex items-center justify-center gap-1">
+                                                <input type="checkbox"
+                                                    class="checkbox checkbox-xs checkbox-primary user-backup"
+                                                    data-user-id="{{ .ID }}" {{ if .User.BackupAccess
+                                                    }}checked="checked" {{ end }} />
+                                                <span class="status hidden" role="status" aria-live="polite"></span>
+                                            </label>
+                                        </td>
+                                        <td class="text-center">
+                                            <label class="flex items-center justify-center gap-1">
+                                                <input type="checkbox"
+                                                    class="checkbox checkbox-xs checkbox-secondary user-ai"
+                                                    data-user-id="{{ .ID }}" {{ if .User.AiAccess }}checked="checked" {{
+                                                    end }} />
+                                                <span class="status hidden" role="status" aria-live="polite"></span>
+                                            </label>
+                                        </td>
+                                    </tr>
+                                    {{ end }}
+                                </tbody>
+                            </table>
+                        </div>
+                        {{ else }}
+                        <p class="text-base-content/50 text-sm text-center italic">No users found</p>
+                        {{ end }}
                     </div>
                 </div>
                 {{ end }}

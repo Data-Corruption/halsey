@@ -66,10 +66,16 @@ func settingsRoutes(a *app.App, r *chi.Mux) {
 				ext,
 			)
 
-			// Fetch guilds with channels for admin users
+			// Fetch guilds with channels and users for admin users
 			var guilds []database.GuildWithID
+			var users []database.UserWithID
 			if session.User.IsAdmin {
 				guilds, err = database.ViewAllGuildsWithChannels(a.DB)
+				if err != nil {
+					xhttp.Error(r.Context(), w, err)
+					return
+				}
+				users, err = database.ViewUsers(a.DB)
 				if err != nil {
 					xhttp.Error(r.Context(), w, err)
 					return
@@ -87,13 +93,15 @@ func settingsRoutes(a *app.App, r *chi.Mux) {
 				"User":            session.User,
 				"AvatarURL":       template.URL(avatarURL),
 				// Admin config fields
-				"LogLevel":     cfg.LogLevel,
-				"Port":         cfg.Port,
-				"Host":         cfg.Host,
-				"ProxyPort":    cfg.ProxyPort,
-				"SystemPrompt": cfg.SystemPrompt,
+				"LogLevel":  cfg.LogLevel,
+				"Port":      cfg.Port,
+				"Host":      cfg.Host,
+				"ProxyPort": cfg.ProxyPort,
+				"HWAccel":   a.Compressor.GetHWAccel().String(),
 				// Guild management
 				"Guilds": guilds,
+				// User management
+				"Users": users,
 			}
 			if err := tmpl.Execute(w, data); err != nil {
 				xhttp.Error(r.Context(), w, err)
@@ -343,9 +351,6 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 				if body.BotToken != nil && *body.BotToken != "" {
 					cfg.BotToken = *body.BotToken
 				}
-				if body.SystemPrompt != nil && *body.SystemPrompt != "" {
-					cfg.SystemPrompt = *body.SystemPrompt
-				}
 				return nil
 			}); err != nil {
 				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to update config", Err: err})
@@ -416,9 +421,6 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 				if body.AiChatEnabled != nil {
 					guild.AiChatEnabled = *body.AiChatEnabled
 				}
-				if body.SystemPrompt != nil {
-					guild.SystemPrompt = *body.SystemPrompt
-				}
 				if body.BotChannelID != nil {
 					guild.BotChannelID = *body.BotChannelID
 				}
@@ -463,6 +465,49 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 				return nil
 			}); err != nil {
 				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to update channel", Err: err})
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
+		})
+
+		// Update user permissions
+		admin.Post("/user/{userID}", func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+
+			userIDStr := chi.URLParam(r, "userID")
+			userID, err := snowflake.Parse(userIDStr)
+			if err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 400, Msg: "invalid user ID", Err: err})
+				return
+			}
+
+			// Parse body - all fields are optional
+			var body struct {
+				IsAdmin      *bool `json:"isAdmin"`
+				BackupAccess *bool `json:"backupAccess"`
+				AiAccess     *bool `json:"aiAccess"`
+			}
+			dec := json.NewDecoder(r.Body)
+			if err := dec.Decode(&body); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 400, Msg: "bad request", Err: err})
+				return
+			}
+
+			// Update only the fields that were provided
+			if _, err := database.UpsertUser(a.DB, userID, func(user *database.User) error {
+				if body.IsAdmin != nil {
+					user.IsAdmin = *body.IsAdmin
+				}
+				if body.BackupAccess != nil {
+					user.BackupAccess = *body.BackupAccess
+				}
+				if body.AiAccess != nil {
+					user.AiAccess = *body.AiAccess
+				}
+				return nil
+			}); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to update user", Err: err})
 				return
 			}
 

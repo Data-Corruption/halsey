@@ -189,6 +189,10 @@ func New(ctx context.Context) *Compressor {
 	return c
 }
 
+func (c *Compressor) GetHWAccel() HWAccelType {
+	return c.activeHWAccel
+}
+
 func (c *Compressor) Video(ctx context.Context, inputFile, outputFile string, timeout time.Duration) error {
 	run := func(dCtx context.Context, inputArgs []string) (string, error) {
 		args := []string{

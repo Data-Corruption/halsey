@@ -39,16 +39,16 @@ type Configuration struct {
 
 	RestartCtx RestartContext `json:"restartContext"`
 
-	BotToken     string `json:"botToken"`
-	SystemPrompt string `json:"systemPrompt"` // global system prompt for AI chat features
+	BotToken string `json:"botToken"`
 }
 
 type User struct {
-	IsAdmin      bool        `json:"isAdmin"`
+	IsAdmin      bool        `json:"isAdmin"` // set by admin
 	Username     string      `json:"username"`
 	AvatarURL    *string     `json:"avatarURL"`    // *string marshals as {null | "" | "x"}
-	BackupAccess bool        `json:"backupAccess"` // allows user to download backups of guilds they are in
+	BackupAccess bool        `json:"backupAccess"` // allows user to download backups of guilds they are in, set by admin
 	BackupOptOut bool        `json:"backupOptOut"` // skips backing up messages from this user
+	AiAccess     bool        `json:"aiAccess"`     // allows user to use AI features, set by admin
 	AiChatOptOut bool        `json:"aiChatOptOut"` // excludes this user from AI chat features
 	AutoExpand   DomainBools `json:"autoExpand"`
 }
@@ -87,7 +87,6 @@ type Guild struct {
 	Backup         GuildBackup         `json:"backup"`
 	AntiRotEnabled bool                `json:"antiRotEnabled"`
 	AiChatEnabled  bool                `json:"aiChatEnabled"`
-	SystemPrompt   string              `json:"systemPrompt"` // guild-specific system prompt for AI chat features
 }
 
 type Session struct {

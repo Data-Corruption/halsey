@@ -63,8 +63,8 @@ type App struct {
 	Compressor *compressor.Compressor
 
 	Client              *bot.Client
-	DiscordEventLimiter chan struct{}  // limit concurrent event processing
-	DiscordWG           sync.WaitGroup // wait group for active Discord work
+	DiscordEventLimiter chan struct{}   // limit concurrent event processing
+	DiscordWG           *sync.WaitGroup // wait group for active Discord work
 
 	// lifecycle management
 	cleanup       []CleanupFunc

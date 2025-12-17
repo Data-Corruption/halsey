@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"sprout/internal/discord/chat"
 	"sprout/internal/platform/auth"
 	"sprout/internal/platform/database"
 	"sprout/pkg/compressor"
@@ -61,6 +62,8 @@ type App struct {
 	AuthManager *auth.Manager
 
 	Compressor *compressor.Compressor
+
+	Chat *chat.ChatManager
 
 	Client              *bot.Client
 	DiscordEventLimiter chan struct{}   // limit concurrent event processing
@@ -152,6 +155,7 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command) (context.Context, erro
 
 	// limit concurrent event processing
 	a.DiscordEventLimiter = make(chan struct{}, 100)
+	a.DiscordWG = &sync.WaitGroup{}
 
 	// update checking
 	if err := a.startAutoChecker(cfg); err != nil {
@@ -163,6 +167,9 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command) (context.Context, erro
 
 	// auth manager
 	a.AuthManager = auth.New(nil, nil)
+
+	// chat manager
+	a.Chat = chat.NewChatManager(ctx, a.DiscordWG, a.Log)
 
 	a.Context = ctx
 	return ctx, nil

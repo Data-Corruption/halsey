@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"sprout/internal/app"
 	"sprout/internal/discord/attachments"
+	"sprout/internal/discord/emojis"
+	"sprout/internal/discord/response"
 	"sprout/internal/platform/database"
-	"strings"
 
 	"github.com/Data-Corruption/lmdb-go/lmdb"
 	"github.com/disgoorg/disgo/discord"
@@ -87,6 +88,16 @@ var Favorite = register(BotCommand{
 			return createFollowupMessage(a, event.Token(), "Internal error", true)
 		}
 
+		// react to original message
+		favEmoji, err := emojis.GetRandFavEmoji(a)
+		if err != nil {
+			a.Log.Error("Failed to get random favorite emoji: ", err)
+		} else {
+			if err := response.ReactToMessage(a, message.ChannelID, message.ID, favEmoji); err != nil {
+				a.Log.Error("Failed to react to original message: ", err)
+			}
+		}
+
 		return createFollowupMessage(a, event.Token(), "Favorite added!", true)
 	},
 })
@@ -115,7 +126,7 @@ func buildFavoriteMessage(a *app.App, message discord.Message) discord.MessageCr
 		}
 		for _, comp := range discordActionRow.Components {
 			if linkButton, ok := comp.(discord.ButtonComponent); ok {
-				if linkButton.Style == discord.ButtonStyleLink && strings.HasPrefix(linkButton.Label, "Open In") {
+				if (linkButton.Style == discord.ButtonStyleLink) && (linkButton.Label == "▲") {
 					oLabel = linkButton.Label
 					oUrl = linkButton.URL
 					buttonFound = true

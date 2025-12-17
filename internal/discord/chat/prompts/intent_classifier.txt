@@ -15,6 +15,7 @@ Respond when:
 - The channel is in an active Halsey conversation and the newest message is a likely follow-up.
 
 Do NOT respond when:
+- The newest activity is an assistant message.
 - It's general chatter between other users.
 - "halsey/hals" appears incidentally (URLs, filenames, quoted text) with no intent.
 - The conversation is looping, stale, or has naturally ended.

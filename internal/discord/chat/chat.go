@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sprout/internal/platform/database"
 	"sprout/pkg/x"
 	"strings"
 	"sync"
 	"time"
 	"unicode"
 
+	"github.com/Data-Corruption/lmdb-go/wrap"
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
@@ -27,6 +29,7 @@ var wakePhrases = []string{"halsey", "hals"}
 
 type Message struct {
 	ID      snowflake.ID `json:"-"`
+	UserID  snowflake.ID `json:"-"`
 	Role    string       `json:"role"`
 	Content string       `json:"content"` // processed, for ollama
 	Created time.Time    `json:"-"`       // required, derived from discord message
@@ -46,6 +49,7 @@ func ParseUserMessage(msg *discord.Message, client *bot.Client) Message {
 	content += fmt.Sprintf(" %s: %s", msg.Author.Username, msg.Content)
 	return Message{
 		ID:      msg.ID,
+		UserID:  msg.Author.ID,
 		Role:    x.Ternary(msg.Author.ID == client.ApplicationID, "assistant", "user"),
 		Content: content,
 		Created: msg.CreatedAt,
@@ -81,6 +85,7 @@ func evictToBudget(buf []Message, maxTokens int) []Message {
 type ChannelState struct {
 	mu            sync.Mutex
 	buf           []Message
+	guildID       snowflake.ID
 	activeUntil   time.Time // used to represent chats with recent chatbot involvement. If time.Now() < activeUntil, skip medium cost Intent Classifier check
 	newestUserMsg time.Time // newest user message only, for determining if we need to respond
 	lastSeen      time.Time // timestamp of newest user message when we last processed
@@ -137,13 +142,14 @@ type ChatManager struct {
 	channels map[snowflake.ID]*ChannelState
 	client   *bot.Client
 	botName  string // cached bot name
+	db       *wrap.DB
 	log      *xlog.Logger
 	ctx      context.Context
 	cancel   context.CancelFunc
 	closeWG  *sync.WaitGroup // wait group for active work
 }
 
-func NewChatManager(log *xlog.Logger) *ChatManager {
+func NewChatManager(db *wrap.DB, log *xlog.Logger) *ChatManager {
 	ctx, cancel := context.WithCancel(context.Background())
 	cm := &ChatManager{
 		channels: make(map[snowflake.ID]*ChannelState),
@@ -201,8 +207,33 @@ func (cm *ChatManager) UpsertChannelMessages(channelID snowflake.ID, fn func([]M
 	channel.mu.Lock()
 	defer channel.mu.Unlock()
 
-	// update messages, evict old messages
-	channel.buf = evictToBudget(fn(channel.buf), MAX_GEN_MSG_TOKENS)
+	// update messages
+	newBuf := fn(channel.buf)
+
+	// replace messages of users lacking access or opted out with
+	// {"role":"system","content":"A message from another user occurred here, but its content is unavailable."}
+	users, err := database.ViewUsers(cm.db)
+	if err != nil {
+		cm.log.Errorf("Failed to get users: %v", err)
+		return
+	}
+	for i := range newBuf {
+		if newBuf[i].Role != "user" {
+			continue
+		}
+		for _, user := range users {
+			if user.ID == newBuf[i].UserID {
+				if !user.User.AiAccess || user.User.AiChatOptOut {
+					newBuf[i].Content = "A message from another user occurred here, but its content is unavailable."
+					newBuf[i].Role = "system"
+					newBuf[i].UserID = 0
+				}
+				break
+			}
+		}
+	}
+
+	channel.buf = evictToBudget(newBuf, MAX_GEN_MSG_TOKENS)
 
 	// update newest user message time
 	if len(channel.buf) > 0 {
@@ -228,6 +259,7 @@ func (cm *ChatManager) tick() {
 		cm.mu.RUnlock()
 		return
 	}
+
 	for channelID, channel := range cm.channels {
 		msgs := channel.shouldRespond()
 		if msgs != nil {
@@ -236,15 +268,38 @@ func (cm *ChatManager) tick() {
 	}
 	cm.mu.RUnlock()
 
+	guilds, err := database.ViewAllGuildsWithChannels(cm.db)
+	if err != nil {
+		cm.log.Errorf("Failed to get guilds: %v", err)
+		return
+	}
+
 	// Process each work item without holding the manager lock
 	// This allows new messages to be added during LLM generation
 	for _, w := range work {
-		cm.processChannel(w)
+		var wGuild database.GuildWithID
+		for _, guild := range guilds {
+			if guild.ID == w.channel.guildID {
+				wGuild = guild
+				break
+			}
+		}
+		if wGuild.ID == 0 || !wGuild.Guild.AiChatEnabled {
+			continue
+		}
+		for _, channel := range wGuild.Channels {
+			if channel.ID == w.channelID {
+				if channel.Channel.AiChat {
+					cm.processChannel(w)
+					break
+				}
+			}
+		}
 	}
 }
 
 func (cm *ChatManager) processChannel(w workItem) {
-	cm.log.Debugf("Escalating channel %s with %d messages", w.channelID, len(w.msgs))
+	cm.log.Debugf("Processing channel %s with %d messages", w.channelID, len(w.msgs))
 
 	// intent classification, trim messages to MAX_INT_MSG_TOKENS
 	intentMsgs := evictToBudget(w.msgs, MAX_INT_MSG_TOKENS)

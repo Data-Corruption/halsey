@@ -169,7 +169,7 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command) (context.Context, erro
 	a.AuthManager = auth.New(nil, nil)
 
 	// chat manager
-	a.Chat = chat.NewChatManager(a.Log)
+	a.Chat = chat.NewChatManager(a.DB, a.Log)
 
 	a.Context = ctx
 	return ctx, nil

@@ -450,6 +450,7 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 			// Parse body - all fields are optional
 			var body struct {
 				BackupEnabled *bool `json:"backupEnabled"`
+				AiChat        *bool `json:"aiChat"`
 			}
 			dec := json.NewDecoder(r.Body)
 			if err := dec.Decode(&body); err != nil {
@@ -461,6 +462,9 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 			if _, err := database.UpsertChannel(a.DB, channelID, func(channel *database.Channel) error {
 				if body.BackupEnabled != nil {
 					channel.Backup.Enabled = *body.BackupEnabled
+				}
+				if body.AiChat != nil {
+					channel.AiChat = *body.AiChat
 				}
 				return nil
 			}); err != nil {

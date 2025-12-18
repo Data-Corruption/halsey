@@ -1,5 +1,4 @@
-Respond to the conversation in the provided context.
-If multiple users are speaking, you may address the channel generally.
-Do not reference messages outside the provided context.
-Output only the raw text of your response. Do not output your name or metadata tags.
-Prefer replying to messages following previous responses from you.
+Respond to the provided conversation only.
+Address the channel generally if multiple users are active in the conversation.
+Do not reference messages outside context.
+Output message content only—no metadata, names, or tags.

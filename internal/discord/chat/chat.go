@@ -23,7 +23,7 @@ import (
 const (
 	MAX_GEN_MSG_TOKENS = 4096
 	MAX_INT_MSG_TOKENS = MAX_GEN_MSG_TOKENS / 2
-	ACTIVE_TIMEOUT     = 1 * time.Minute
+	ACTIVE_TIMEOUT     = 2 * time.Minute
 	OLLAMA_CHAT_URL    = "http://Peridot:11434/api/chat" // e.g., "http://127.0.0.1:11434/api/chat"
 	MAX_OUT_LENGTH     = 2000
 )
@@ -63,11 +63,12 @@ func ParseUserMessage(msg *discord.Message, client *bot.Client) Message {
 }
 
 type ChannelState struct {
-	mu          sync.Mutex
-	buf         []Message
-	activeUntil time.Time // used to represent chats with recent chatbot involvement. If time.Now() < activeUntil, skip medium cost Intent Classifier check
-	newestMsg   time.Time
-	lastSeen    time.Time // used to determine if there have been new messages since last response / rejection
+	mu            sync.Mutex
+	buf           []Message
+	activeUntil   time.Time // used to represent chats with recent chatbot involvement. If time.Now() < activeUntil, skip medium cost Intent Classifier check
+	newestMsg     time.Time // newest message (any role)
+	newestUserMsg time.Time // newest user message only, for determining if we need to respond
+	lastSeen      time.Time // timestamp of newest user message when we last processed
 }
 
 type ChatManager struct {
@@ -77,20 +78,22 @@ type ChatManager struct {
 	botName  string // cached bot name
 	log      *xlog.Logger
 	ctx      context.Context
+	closeWG  *sync.WaitGroup // wait group for active work
 }
 
-func NewChatManager(ctx context.Context, closeWG *sync.WaitGroup, log *xlog.Logger) *ChatManager {
+func NewChatManager(ctx context.Context, log *xlog.Logger) *ChatManager {
 	cm := &ChatManager{
 		channels: make(map[snowflake.ID]*ChannelState),
 		log:      log,
 		ctx:      ctx,
+		closeWG:  &sync.WaitGroup{},
 	}
 
-	closeWG.Add(1)
+	cm.closeWG.Add(1)
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
-		defer closeWG.Done()
 		defer ticker.Stop()
+		defer cm.closeWG.Done()
 
 		for {
 			select {
@@ -103,6 +106,11 @@ func NewChatManager(ctx context.Context, closeWG *sync.WaitGroup, log *xlog.Logg
 	}()
 
 	return cm
+}
+
+func (cm *ChatManager) Close() error {
+	cm.closeWG.Wait()
+	return nil
 }
 
 func (cm *ChatManager) SetClient(client *bot.Client) {
@@ -131,99 +139,134 @@ func (cm *ChatManager) UpsertChannelMessages(channelID snowflake.ID, fn func([]M
 	// update messages, evict old messages
 	channel.buf = evictToBudget(fn(channel.buf), MAX_GEN_MSG_TOKENS)
 
-	// update newest message time
+	// update newest message times
 	if len(channel.buf) > 0 {
 		channel.newestMsg = channel.buf[len(channel.buf)-1].Created
+		// find newest user message
+		for i := len(channel.buf) - 1; i >= 0; i-- {
+			if channel.buf[i].Role == "user" {
+				channel.newestUserMsg = channel.buf[i].Created
+				break
+			}
+		}
 	}
 }
 
 func (cm *ChatManager) tick() {
-	cm.mu.RLock()
+	// Collect work items while holding the lock briefly
+	type workItem struct {
+		channelID snowflake.ID
+		channel   *ChannelState
+		msgs      []Message
+	}
+	var work []workItem
 
+	cm.mu.RLock()
 	if cm.client == nil {
 		cm.mu.RUnlock()
 		return
 	}
-
 	for channelID, channel := range cm.channels {
-		// get snapshot of messages
 		msgs := channel.shouldRespond()
-		if msgs == nil {
-			continue
+		if msgs != nil {
+			work = append(work, workItem{channelID: channelID, channel: channel, msgs: msgs})
 		}
+	}
+	cm.mu.RUnlock()
 
-		cm.log.Debugf("Escalating channel %s with %d messages", channelID, len(msgs))
+	// Process each work item without holding the manager lock
+	// This allows new messages to be added during LLM generation
+	for _, w := range work {
+		cm.log.Debugf("Escalating channel %s with %d messages", w.channelID, len(w.msgs))
 
 		// intent classification, trim messages to MAX_INT_MSG_TOKENS
-		intentMsgs := evictToBudget(msgs, MAX_INT_MSG_TOKENS)
+		intentMsgs := evictToBudget(w.msgs, MAX_INT_MSG_TOKENS)
 
 		intentResp, err := cm.classifyIntent(intentMsgs)
 		if err != nil {
-			cm.log.Errorf("Failed to classify intent for channel %s: %v", channelID, err)
+			cm.log.Errorf("Failed to classify intent for channel %s: %v", w.channelID, err)
 			continue
 		}
 
 		cm.log.Debugf("Intent decision for channel %s, Respond: %v, Confidence: %f, Reason: %s",
-			channelID, intentResp.Respond, intentResp.Confidence, intentResp.Reason)
+			w.channelID, intentResp.Respond, intentResp.Confidence, intentResp.Reason)
 
 		if !intentResp.Respond {
 			continue
 		}
 
 		// update activeUntil
-		channel.mu.Lock()
-		channel.activeUntil = channel.newestMsg.Add(ACTIVE_TIMEOUT)
-		channel.mu.Unlock()
+		w.channel.mu.Lock()
+		w.channel.activeUntil = w.channel.newestMsg.Add(ACTIVE_TIMEOUT)
+		w.channel.mu.Unlock()
 
 		// send typing indicator
-		if err := cm.client.Rest.SendTyping(channelID); err != nil {
-			cm.log.Errorf("Failed to send typing indicator for channel %s: %v", channelID, err)
+		cm.mu.RLock()
+		client := cm.client
+		cm.mu.RUnlock()
+		if err := client.Rest.SendTyping(w.channelID); err != nil {
+			cm.log.Errorf("Failed to send typing indicator for channel %s: %v", w.channelID, err)
 		}
 
 		// response generation
-		response, err := cm.generateResponse(msgs)
+		response, err := cm.generateResponse(w.msgs)
 		if err != nil {
-			cm.log.Errorf("Failed to generate response for channel %s: %v", channelID, err)
+			cm.log.Errorf("Failed to generate response for channel %s: %v", w.channelID, err)
 			continue
 		}
+		cm.mu.RLock()
 		response = SanitizeResponse(response, cm.botName)
+		cm.mu.RUnlock()
 		if len(response) == 0 {
-			cm.log.Debugf("Response for channel %s was empty", channelID)
+			cm.log.Debugf("Response for channel %s was empty", w.channelID)
 			continue
 		}
 		if len(response) > MAX_OUT_LENGTH {
-			cm.log.Debugf("Response for channel %s was too long, truncating", channelID)
+			cm.log.Debugf("Response for channel %s was too long, truncating", w.channelID)
 			response = response[:MAX_OUT_LENGTH]
 		}
 		msgBuild := discord.NewMessageCreateBuilder().SetContent(response)
 
-		// if there were new msgs during response generation, send as a reply to latest snapshot msg, else send raw
-		channel.mu.Lock()
-		snapshotTime := msgs[len(msgs)-1].Created
-		newMsgs := channel.newestMsg.After(snapshotTime)
-		channel.mu.Unlock()
+		// if there were new user msgs during response generation, send as a reply to latest snapshot msg, else send raw
+		w.channel.mu.Lock()
+		// find the last user message in the snapshot to get the correct timestamp
+		var snapshotUserTime time.Time
+		var lastUserMsgID snowflake.ID
+		for i := len(w.msgs) - 1; i >= 0; i-- {
+			if w.msgs[i].Role == "user" {
+				snapshotUserTime = w.msgs[i].Created
+				lastUserMsgID = w.msgs[i].ID
+				break
+			}
+		}
+		newMsgs := !snapshotUserTime.IsZero() && w.channel.newestUserMsg.After(snapshotUserTime)
+		cm.log.Debugf("Reply check for channel %s: snapshotUserTime=%v, newestUserMsg=%v, newMsgs=%v",
+			w.channelID, snapshotUserTime, w.channel.newestUserMsg, newMsgs)
+		w.channel.mu.Unlock()
 		if newMsgs {
-			msgBuild.SetMessageReference(&discord.MessageReference{MessageID: &msgs[len(msgs)-1].ID})
+			msgBuild.SetMessageReference(&discord.MessageReference{MessageID: &lastUserMsgID})
 		}
 
-		resMsg, err := cm.client.Rest.CreateMessage(channelID, msgBuild.Build())
+		cm.mu.RLock()
+		resMsg, err := cm.client.Rest.CreateMessage(w.channelID, msgBuild.Build())
+		cm.mu.RUnlock()
 		if err != nil {
-			cm.log.Errorf("Failed to send message to channel %s: %v", channelID, err)
+			cm.log.Errorf("Failed to send message to channel %s: %v", w.channelID, err)
 			continue
 		}
 		// insert res immediately into channel buf
-		cm.mu.RUnlock()
-		cm.UpsertChannelMessages(channelID, func(buf []Message) []Message {
+		cm.UpsertChannelMessages(w.channelID, func(buf []Message) []Message {
 			if !slices.ContainsFunc(buf, func(m Message) bool {
 				return m.ID == resMsg.ID
 			}) {
-				return append(buf, ParseUserMessage(resMsg, cm.client))
+				cm.mu.RLock()
+				msg := ParseUserMessage(resMsg, cm.client)
+				cm.mu.RUnlock()
+				return append(buf, msg)
 			}
 			return buf
 		})
-		cm.mu.RLock()
 	}
-	cm.mu.RUnlock()
 }
 
 type OllamaRequest struct {
@@ -356,20 +399,16 @@ func (cs *ChannelState) shouldRespond() []Message {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 
-	// no messages
-	if len(cs.buf) == 0 || cs.newestMsg.IsZero() {
+	// no messages or no user messages
+	if len(cs.buf) == 0 || cs.newestUserMsg.IsZero() {
 		return nil
 	}
-	// no new messages since last seen
-	if !cs.lastSeen.IsZero() && (cs.newestMsg.Equal(cs.lastSeen) || cs.newestMsg.Before(cs.lastSeen)) {
-		return nil
-	}
-	// skip if the newest message is from the assistant (prevents re-classifying after bot responds)
-	if len(cs.buf) > 0 && cs.buf[len(cs.buf)-1].Role == "assistant" {
+	// no new user messages since last seen
+	if !cs.lastSeen.IsZero() && !cs.newestUserMsg.After(cs.lastSeen) {
 		return nil
 	}
 
-	cs.lastSeen = cs.newestMsg
+	cs.lastSeen = cs.newestUserMsg
 
 	// if activeUntil is set and has not passed, return all messages
 	if !cs.activeUntil.IsZero() && time.Now().Before(cs.activeUntil) {

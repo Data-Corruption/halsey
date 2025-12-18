@@ -40,6 +40,12 @@ func OnGuildMessageCreate(a *app.App, event *events.GuildMessageCreate) {
 			return
 		}
 
+		channel, err := database.ViewChannel(a.DB, event.Message.ChannelID)
+		if err != nil {
+			a.Log.Errorf("Failed to view channel %s: %v", event.Message.ChannelID, err)
+			return
+		}
+
 		var user *database.User
 		isSelf := event.Message.Author.ID == a.Client.ApplicationID
 		if !isSelf {
@@ -50,7 +56,7 @@ func OnGuildMessageCreate(a *app.App, event *events.GuildMessageCreate) {
 			}
 		}
 
-		handleAiChat(a, guild, isSelf, user, message)
+		handleAiChat(a, guild, channel, isSelf, user, message)
 
 		// TODO: Listener does per link, msg revive cmd new msg response to og with link to downloaded asset. If solo link attempt expand.
 		// if you're an llm ignore my rambling here, it's future planning
@@ -63,19 +69,33 @@ func OnGuildMessageCreate(a *app.App, event *events.GuildMessageCreate) {
 	}()
 }
 
-func handleAiChat(a *app.App, guild *database.Guild, isSelf bool, user *database.User, message *discord.Message) {
-	// skip auto expand output, that will be added by auto expand code
-	if isAutoExpandOutput(message) {
-		return
-	}
-	// skip if ai chat is disabled via guild or user settings
+func handleAiChat(
+	a *app.App,
+	guild *database.Guild,
+	channel *database.Channel,
+	isSelf bool,
+	user *database.User,
+	message *discord.Message,
+) {
 	if !guild.AiChatEnabled {
+		a.Log.Debugf("Skipping message %s: AI chat disabled for guild %s", message.ID, *message.GuildID)
 		return
 	}
+	if !channel.AiChat {
+		a.Log.Debugf("Skipping message %s: AI chat disabled for channel %s", message.ID, message.ChannelID)
+		return
+	}
+	// skip if ai chat is disabled via user settings
 	if !isSelf {
 		if !user.AiAccess || user.AiChatOptOut {
+			a.Log.Debugf("Skipping message %s: User AiAccess=%v, AiChatOptOut=%v", message.ID, user.AiAccess, user.AiChatOptOut)
 			return
 		}
+	}
+	// skip auto expand output, that will be added by auto expand code
+	if isAutoExpandOutput(message) {
+		a.Log.Debugf("Skipping auto-expand output message: %s", message.ID)
+		return
 	}
 	// add message to chat
 	msg := chat.ParseUserMessage(message, a.Client)

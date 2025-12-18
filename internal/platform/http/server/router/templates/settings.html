@@ -535,6 +535,11 @@
                                                     <th class="text-center">Type</th>
                                                     <th class="text-center">Backup</th>
                                                     <th class="text-center">
+                                                        <div class="tooltip tooltip-top" data-tip="AI Chat enabled">
+                                                            <span>💬</span>
+                                                        </div>
+                                                    </th>
+                                                    <th class="text-center">
                                                         <div class="tooltip tooltip-top" data-tip="Favorites Channel">
                                                             <span>⭐</span>
                                                         </div>
@@ -549,7 +554,7 @@
                                             <tbody>
                                                 <!-- None row for fav/bot channel selection -->
                                                 <tr class="hover">
-                                                    <td class="text-base-content/50 italic" colspan="3">— None —</td>
+                                                    <td class="text-base-content/50 italic" colspan="4">— None —</td>
                                                     <td class="text-center">
                                                         <input type="radio" name="fav-channel-{{ $g.ID }}" value="0"
                                                             class="radio radio-xs radio-warning guild-fav-channel"
@@ -586,6 +591,13 @@
                                                         <input type="checkbox" id="channel-{{ .ID }}-backup"
                                                             class="checkbox checkbox-xs checkbox-primary channel-backup"
                                                             data-channel-id="{{ .ID }}" {{ if .Channel.Backup.Enabled
+                                                            }}checked="checked" {{ end }} {{ if .Channel.Deleted
+                                                            }}disabled{{ end }} />
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <input type="checkbox" id="channel-{{ .ID }}-aichat"
+                                                            class="checkbox checkbox-xs checkbox-secondary channel-aichat"
+                                                            data-channel-id="{{ .ID }}" {{ if .Channel.AiChat
                                                             }}checked="checked" {{ end }} {{ if .Channel.Deleted
                                                             }}disabled{{ end }} />
                                                     </td>

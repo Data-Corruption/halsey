@@ -476,6 +476,31 @@ function pollForRestart(updateRequested = false) {
             });
         });
 
+        // Wire up channel AI chat checkboxes
+        document.querySelectorAll('.channel-aichat').forEach(checkbox => {
+            const channelId = checkbox.dataset.channelId;
+            if (!channelId) return;
+
+            const status = findStatus(checkbox);
+            checkbox.addEventListener('change', async () => {
+                showPending(status);
+                try {
+                    const res = await fetch(`/settings/channel/${channelId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ aiChat: checkbox.checked })
+                    });
+                    if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(text || `HTTP ${res.status}`);
+                    }
+                    showSuccess(status);
+                } catch (e) {
+                    showError(status, e.message);
+                }
+            });
+        });
+
         // Wire up fav channel radio buttons
         document.querySelectorAll('.guild-fav-channel').forEach(radio => {
             radio.addEventListener('change', async () => {

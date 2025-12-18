@@ -67,6 +67,7 @@ type Channel struct {
 	Position int                 `json:"position"` // position in the channel list, guildThreads are always 0
 	ParentID snowflake.ID        `json:"parentID"` // category ID, 0 if none
 	Backup   ChannelBackup       `json:"backup"`
+	AiChat   bool                `json:"aiChat"`
 	Deleted  bool                `json:"deleted"` // for knowing to skip backup
 }
 

@@ -78,14 +78,17 @@ type ChatManager struct {
 	botName  string // cached bot name
 	log      *xlog.Logger
 	ctx      context.Context
+	cancel   context.CancelFunc
 	closeWG  *sync.WaitGroup // wait group for active work
 }
 
-func NewChatManager(ctx context.Context, log *xlog.Logger) *ChatManager {
+func NewChatManager(log *xlog.Logger) *ChatManager {
+	ctx, cancel := context.WithCancel(context.Background())
 	cm := &ChatManager{
 		channels: make(map[snowflake.ID]*ChannelState),
 		log:      log,
 		ctx:      ctx,
+		cancel:   cancel,
 		closeWG:  &sync.WaitGroup{},
 	}
 
@@ -109,6 +112,7 @@ func NewChatManager(ctx context.Context, log *xlog.Logger) *ChatManager {
 }
 
 func (cm *ChatManager) Close() error {
+	cm.cancel() // cancel context to stop ticker and abort in-flight Ollama calls
 	cm.closeWG.Wait()
 	return nil
 }

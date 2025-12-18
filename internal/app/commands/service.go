@@ -102,6 +102,7 @@ var Service = register(func(a *app.App) *cli.Command {
 							// wait for Discord work to finish (with timeout)
 							done := make(chan struct{})
 							go func() {
+								a.Chat.Close()
 								a.DiscordWG.Wait()
 								close(done)
 							}()

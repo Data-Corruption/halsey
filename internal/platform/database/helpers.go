@@ -372,6 +372,74 @@ func UpsertGuild(db *wrap.DB, guildID snowflake.ID, updateFunc func(guild *Guild
 	return Upsert(db, GuildsDBIName, []byte(guildID.String()), defaultGuild, updateFunc)
 }
 
+// DeleteGuild removes a guild and all its associated channels from the database.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func DeleteGuild(db *wrap.DB, guildID snowflake.ID) error {
+	if guildID == 0 {
+		return fmt.Errorf("invalid guild ID")
+	}
+
+	return db.Update(func(txn *lmdb.Txn) error {
+		// Get the DBIs
+		guildsDBI, ok := db.GetDBis()[GuildsDBIName]
+		if !ok {
+			return fmt.Errorf("DBI %q not found", GuildsDBIName)
+		}
+		channelsDBI, ok := db.GetDBis()[ChannelsDBIName]
+		if !ok {
+			return fmt.Errorf("DBI %q not found", ChannelsDBIName)
+		}
+
+		// Delete all channels belonging to this guild
+		cursor, err := txn.OpenCursor(channelsDBI)
+		if err != nil {
+			return fmt.Errorf("failed to create cursor: %w", err)
+		}
+		defer cursor.Close()
+
+		// Collect channel keys to delete (can't delete during iteration safely)
+		var keysToDelete [][]byte
+		for {
+			k, v, err := cursor.Get(nil, nil, lmdb.Next)
+			if lmdb.IsNotFound(err) {
+				break
+			}
+			if err != nil {
+				return fmt.Errorf("failed to get next entry: %w", err)
+			}
+
+			var channel Channel
+			if err := json.Unmarshal(v, &channel); err != nil {
+				return fmt.Errorf("failed to unmarshal channel: %w", err)
+			}
+
+			if channel.GuildID == guildID {
+				// Make a copy of the key since cursor data may be invalidated
+				keyCopy := make([]byte, len(k))
+				copy(keyCopy, k)
+				keysToDelete = append(keysToDelete, keyCopy)
+			}
+		}
+
+		// Delete the collected channel keys
+		for _, key := range keysToDelete {
+			if err := txn.Del(channelsDBI, key, nil); err != nil {
+				return fmt.Errorf("failed to delete channel: %w", err)
+			}
+		}
+
+		// Delete the guild itself
+		if err := txn.Del(guildsDBI, []byte(guildID.String()), nil); err != nil {
+			if !lmdb.IsNotFound(err) {
+				return fmt.Errorf("failed to delete guild: %w", err)
+			}
+		}
+
+		return nil
+	})
+}
+
 // CleanSessions removes expired sessions from the database.
 //
 // WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).

@@ -16,7 +16,7 @@ var Ping = register(BotCommand{
 		Description: "Check if i'm turned on ;p",
 	},
 	Handler: func(a *app.App, event *events.ApplicationCommandInteractionCreate) error {
-		event.CreateMessage(discord.NewMessageCreateBuilder().SetContent("Pong!").Build())
+		event.CreateMessage(discord.NewMessageCreateBuilder().SetContent("Pong!").SetEphemeral(true).Build())
 		return nil
 	},
 })

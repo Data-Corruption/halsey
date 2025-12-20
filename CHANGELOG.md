@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.4] - 2025-12-20
+
+**Added**
+- Delete guild feature in admin settings with confirmation modal
+
 ## [v0.2.3] - 2025-12-20
 
 **Fixed**

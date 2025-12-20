@@ -450,6 +450,23 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 			w.WriteHeader(http.StatusOK)
 		})
 
+		// Delete guild and all associated channels
+		admin.Delete("/guild/{guildID}", func(w http.ResponseWriter, r *http.Request) {
+			guildIDStr := chi.URLParam(r, "guildID")
+			guildID, err := snowflake.Parse(guildIDStr)
+			if err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 400, Msg: "invalid guild ID", Err: err})
+				return
+			}
+
+			if err := database.DeleteGuild(a.DB, guildID); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to delete guild", Err: err})
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
+		})
+
 		// Update channel settings
 		admin.Post("/channel/{channelID}", func(w http.ResponseWriter, r *http.Request) {
 			defer r.Body.Close()

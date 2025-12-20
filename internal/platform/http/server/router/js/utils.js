@@ -564,8 +564,87 @@ function pollForRestart(updateRequested = false) {
             });
         });
 
+        // Wire up delete guild buttons
+        wireDeleteGuildButtons();
+
         // Wire up user settings
         wireUserSettings();
+    }
+
+    // Wire up delete guild functionality
+    function wireDeleteGuildButtons() {
+        const modal = document.getElementById('delete-guild-modal');
+        const nameDisplay = document.getElementById('delete-guild-name');
+        const confirmInput = document.getElementById('delete-guild-confirm-input');
+        const confirmBtn = document.getElementById('delete-guild-confirm-btn');
+        const guildIdInput = document.getElementById('delete-guild-id');
+
+        if (!modal || !confirmBtn) return;
+
+        // Wire up all delete buttons
+        document.querySelectorAll('.delete-guild-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const guildId = btn.dataset.guildId;
+                const guildName = btn.dataset.guildName;
+
+                // Set up modal
+                nameDisplay.textContent = guildName;
+                guildIdInput.value = guildId;
+                confirmInput.value = '';
+                confirmBtn.disabled = true;
+
+                // Show modal
+                modal.showModal();
+            });
+        });
+
+        // Enable/disable confirm button based on input matching guild name
+        confirmInput.addEventListener('input', () => {
+            const expectedName = nameDisplay.textContent;
+            confirmBtn.disabled = confirmInput.value !== expectedName;
+        });
+
+        // Handle confirm button click
+        confirmBtn.addEventListener('click', async () => {
+            const guildId = guildIdInput.value;
+            if (!guildId) return;
+
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Deleting...';
+
+            try {
+                const res = await fetch(`/settings/guild/${guildId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || `HTTP ${res.status}`);
+                }
+
+                // Close modal and reload page to reflect changes
+                modal.close();
+                window.location.reload();
+            } catch (e) {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Delete Guild';
+
+                // Show error modal
+                const errorModal = document.getElementById('error-modal');
+                const errorMsg = document.getElementById('error-modal-message');
+                if (errorModal && errorMsg) {
+                    errorMsg.textContent = e.message || 'Failed to delete guild.';
+                    errorModal.showModal();
+                }
+            }
+        });
+
+        // Reset modal state when closed
+        modal.addEventListener('close', () => {
+            confirmInput.value = '';
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Delete Guild';
+        });
     }
 
     // Wire up user permission settings

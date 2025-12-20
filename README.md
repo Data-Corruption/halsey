@@ -6,4 +6,7 @@ Go-based Discord bot for link expansion and lightweight archiving. Minimal footp
 curl -fsSL https://instalsey.regfile.net | sh
 ```
 
+Anti-link-Rot requires pipx
+AI chat requires ollama
+
 wip

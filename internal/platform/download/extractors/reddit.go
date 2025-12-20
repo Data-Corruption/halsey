@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sprout/internal/platform/download"
 	"sprout/pkg/xhtml"
 	"strings"
 	"time"
@@ -41,10 +42,24 @@ func Reddit(ctx context.Context, rawURL, userAgent string) (any, string, error) 
 	// get post info (loop to handle crossposts)
 	i := 0
 	for {
-		// get page
-		var err error
-		if doc, err = xhtml.Fetch(url); err != nil {
-			return nil, "Failed to fetch Reddit page", fmt.Errorf("failed to fetch Reddit page: %w", err)
+		// get page with 10s timeout
+		type fetchResult struct {
+			doc *html.Node
+			err error
+		}
+		fetchCh := make(chan fetchResult, 1)
+		go func() {
+			d, e := xhtml.Fetch(url)
+			fetchCh <- fetchResult{d, e}
+		}()
+		select {
+		case res := <-fetchCh:
+			if res.err != nil {
+				return nil, "Failed to fetch Reddit page", fmt.Errorf("failed to fetch Reddit page: %w", res.err)
+			}
+			doc = res.doc
+		case <-time.After(10 * time.Second):
+			return nil, "Timed out fetching Reddit page", fmt.Errorf("timed out fetching Reddit page after 10s")
 		}
 
 		// get post element
@@ -74,6 +89,19 @@ func Reddit(ctx context.Context, rawURL, userAgent string) (any, string, error) 
 			xlog.Debugf(ctx, "Following crosspost to: %s", url)
 			i++
 			continue
+		}
+		// handle link based crossposts
+		if postType == "link" {
+			linkDomain := download.ParseDomain(contentHref)
+			if linkDomain == download.DomainReddit {
+				if i >= 5 {
+					return nil, "Umm... crosspost chain suspiciously long. Aborting.", fmt.Errorf("crosspost chain too long")
+				}
+				url = contentHref
+				xlog.Debugf(ctx, "Following crosspost to: %s", url)
+				i++
+				continue
+			}
 		}
 
 		break

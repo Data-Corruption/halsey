@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	OLLAMA_CHAT_URL = "http://Peridot:11434/api/chat" // e.g., "http://127.0.0.1:11434/api/chat"
-	MODEL_NAME      = "gpt-oss:20b"
+	DEFAULT_OLLAMA_URL = "http://localhost:11434" // default if not configured
+	MODEL_NAME         = "gpt-oss:20b"
 )
 
 type OllamaRequest struct {
@@ -37,7 +37,7 @@ func (ir IntentResponse) String() string {
 	return fmt.Sprintf("Respond=%v, Confidence=%.2f, Reason=%s", ir.Respond, ir.Confidence, ir.Reason)
 }
 
-func callOllama(ctx context.Context, req OllamaRequest) ([]byte, error) {
+func callOllama(ctx context.Context, url string, req OllamaRequest) ([]byte, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func callOllama(ctx context.Context, req OllamaRequest) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", OLLAMA_CHAT_URL, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func callOllama(ctx context.Context, req OllamaRequest) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func classifyIntent(ctx context.Context, msgs []Message) (*IntentResponse, error) {
+func (cm *ChatManager) classifyIntent(ctx context.Context, msgs []Message) (*IntentResponse, error) {
 	ollamaMsgs := make([]OllamaMessage, 0, len(msgs)+1)
 	ollamaMsgs = append(ollamaMsgs, OllamaMessage{
 		Role:    "system",
@@ -85,7 +85,7 @@ func classifyIntent(ctx context.Context, msgs []Message) (*IntentResponse, error
 		Format:   "json",
 	}
 
-	respBody, err := callOllama(ctx, reqBody)
+	respBody, err := callOllama(ctx, cm.ollamaURL+"/api/chat", reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func classifyIntent(ctx context.Context, msgs []Message) (*IntentResponse, error
 	return &intent, nil
 }
 
-func generateResponse(ctx context.Context, msgs []Message) (string, error) {
+func (cm *ChatManager) generateResponse(ctx context.Context, msgs []Message) (string, error) {
 	ollamaMsgs := make([]OllamaMessage, 0, len(msgs)+2)
 	ollamaMsgs = append(ollamaMsgs, OllamaMessage{
 		Role:    "system",
@@ -128,7 +128,7 @@ func generateResponse(ctx context.Context, msgs []Message) (string, error) {
 		Stream:   false,
 	}
 
-	respBody, err := callOllama(ctx, reqBody)
+	respBody, err := callOllama(ctx, cm.ollamaURL+"/api/chat", reqBody)
 	if err != nil {
 		return "", err
 	}

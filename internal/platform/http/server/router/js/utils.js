@@ -425,6 +425,29 @@ function pollForRestart(updateRequested = false) {
         handleTextInput('admin-port', '/settings/admin', 'port', 500, { onSuccess: showRestartNotice });
         handleTextInput('admin-proxy-port', '/settings/admin', 'proxyPort', 500, { onSuccess: showRestartNotice });
         handleTextInput('admin-bot-token', '/settings/admin', 'botToken', 500, { skipEmpty: true, onSuccess: showRestartNotice });
+        handleTextInput('admin-ollama-url', '/settings/admin', 'ollamaURL', 500, { onSuccess: showRestartNotice });
+
+        // yt-dlp Update button (one-shot action, not a toggle)
+        const ytdlpBtn = document.getElementById('admin-update-yt-dlp');
+        if (ytdlpBtn) {
+            const status = ytdlpBtn.parentElement.querySelector('.status');
+            ytdlpBtn.addEventListener('click', async () => {
+                ytdlpBtn.disabled = true;
+                showPending(status);
+                try {
+                    const res = await fetch('/settings/update-yt-dlp', { method: 'GET' });
+                    if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(text || `HTTP ${res.status}`);
+                    }
+                    showSuccess(status);
+                } catch (e) {
+                    showError(status, e.message);
+                } finally {
+                    ytdlpBtn.disabled = false;
+                }
+            });
+        }
 
         // Guild settings - wire up dynamically found guilds
         wireGuildSettings();

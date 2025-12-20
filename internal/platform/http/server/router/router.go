@@ -1,11 +1,14 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
+	"path/filepath"
 	"sprout/internal/app"
 	"sprout/internal/platform/http/server/router/css"
 	"sprout/internal/platform/http/server/router/images"
 	"sprout/internal/platform/http/server/router/js"
+	"sprout/pkg/xcrypto"
 
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/go-chi/chi/v5"
@@ -73,10 +76,34 @@ func New(a *app.App) *chi.Mux {
 		s.Get("/a", func(w http.ResponseWriter, r *http.Request) {
 			hash := r.URL.Query().Get("h")
 			if hash == "" {
-				w.Write([]byte("baba booey\n"))
+				http.Error(w, "hash required", http.StatusBadRequest)
 				return
 			}
-			w.Write([]byte("downloaded file with hash: " + hash + "\n"))
+			// validate hash
+			if !xcrypto.IsSHA256LowerHex(hash) {
+				http.Error(w, "invalid hash", http.StatusBadRequest)
+				return
+			}
+			assetDir := filepath.Join(a.StorageDir, "assets")
+
+			// Build the subdirectory path: ab/cd/
+			subDir := filepath.Join(assetDir, hash[:2], hash[2:4])
+
+			// Look for a file matching the hash with any extension
+			pattern := filepath.Join(subDir, hash+".*")
+			matches, err := filepath.Glob(pattern)
+			if err != nil {
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+			if len(matches) == 0 {
+				http.Error(w, "not found", http.StatusNotFound)
+				return
+			}
+
+			// Serve the first match (there should only be one)
+			w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filepath.Base(matches[0])))
+			http.ServeFile(w, r, matches[0])
 		})
 	})
 

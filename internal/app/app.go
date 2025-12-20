@@ -14,6 +14,7 @@ import (
 	"sprout/pkg/compressor"
 	"sprout/pkg/workqueue"
 	"sprout/pkg/x"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/Data-Corruption/stdx/xlog"
 	"github.com/disgoorg/disgo/bot"
 	"github.com/urfave/cli/v3"
+	"golang.org/x/mod/semver"
 )
 
 // ReleaseSource defines the interface for checking for updates.
@@ -50,7 +52,8 @@ type App struct {
 	DB            *wrap.DB
 	Log           *xlog.Logger
 	Server        *xhttp.Server
-	BaseURL       string // e.g., "https://example.com/"
+	BaseURL       string // e.g., "https://example.com"
+	UserAgent     string
 	StorageDir    string // (e.g., ~/.appName)
 	RuntimeDir    string // (e.g., XDG_RUNTIME_DIR/name, fallback to /tmp/name-USER)
 	ReleaseSource ReleaseSource
@@ -144,6 +147,10 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command) (context.Context, erro
 	}
 	a.Log.Debugf("Base URL: %s", a.BaseURL)
 
+	// set UserAgent
+	mmVer := strings.TrimPrefix(semver.MajorMinor(a.Version), "v")
+	a.UserAgent = fmt.Sprintf("Mozilla/5.0 (compatible; %s/%s; +https://halsey.regfile.net)", a.Name, mmVer)
+
 	// set log level
 	if initLogLevel != "debug" {
 		if err := a.Log.SetLevel(cfg.LogLevel); err != nil {
@@ -164,6 +171,11 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command) (context.Context, erro
 
 	// compressor
 	a.Compressor = compressor.New(ctx)
+
+	// queues
+	a.RedditQueue = workqueue.New(a.Log, 5*time.Second, 2*time.Second, 30*time.Second)
+	a.RedGifsQueue = workqueue.New(a.Log, 5*time.Second, 2*time.Second, 30*time.Second)
+	a.YoutubeQueue = workqueue.New(a.Log, 5*time.Second, 2*time.Second, 30*time.Second)
 
 	// auth manager
 	a.AuthManager = auth.New(nil, nil)

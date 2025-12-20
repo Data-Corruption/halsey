@@ -198,6 +198,23 @@ func YtDLPLength(ctx context.Context, rawURL string, timeout time.Duration) (int
 	return int(secFloat), nil
 }
 
+// UpdateYtDLP installs or updates yt-dlp to the latest version.
+// Requires pipx to be installed.
+func UpdateYtDLP() error {
+	if err := ensureTool("pipx"); err != nil {
+		return err
+	}
+	// upgrade; if pipx says it's not installed, install it
+	cmd := exec.Command("pipx", "upgrade", "yt-dlp")
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if err := cmd.Run(); err != nil {
+		install := exec.Command("pipx", "install", `yt-dlp[default]`)
+		install.Stdout, install.Stderr = os.Stdout, os.Stderr
+		return install.Run()
+	}
+	return nil
+}
+
 // ---- internal ----
 
 type downloadFn func(ctx context.Context, rawURL, outPath, userAgent string) error

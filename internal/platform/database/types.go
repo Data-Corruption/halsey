@@ -40,6 +40,12 @@ type Configuration struct {
 	RestartCtx RestartContext `json:"restartContext"`
 
 	BotToken string `json:"botToken"`
+
+	OllamaURL string `json:"ollamaURL"` // e.g., "http://localhost:11434"
+}
+
+type Asset struct {
+	Path string `json:"path"`
 }
 
 type User struct {

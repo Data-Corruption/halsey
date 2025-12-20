@@ -9,6 +9,7 @@ import (
 	"sprout/internal/app"
 	"sprout/internal/platform/auth"
 	"sprout/internal/platform/database"
+	"sprout/internal/platform/download"
 	"sprout/internal/platform/http/server/router/css"
 	"sprout/internal/platform/http/server/router/images"
 	"sprout/internal/platform/http/server/router/js"
@@ -97,6 +98,7 @@ func settingsRoutes(a *app.App, r *chi.Mux) {
 				"Port":      cfg.Port,
 				"Host":      cfg.Host,
 				"ProxyPort": cfg.ProxyPort,
+				"OllamaURL": cfg.OllamaURL,
 				"HWAccel":   a.Compressor.GetHWAccel().String(),
 				// Guild management
 				"Guilds": guilds,
@@ -271,6 +273,14 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 			})
 		})
 
+		admin.Get("/update-yt-dlp", func(w http.ResponseWriter, r *http.Request) {
+			if err := download.UpdateYtDLP(); err != nil {
+				xhttp.Error(r.Context(), w, &xhttp.Err{Code: 500, Msg: "failed to update yt-dlp", Err: err})
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		})
+
 		admin.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
 			defer r.Body.Close()
 
@@ -326,6 +336,7 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 				Port         *int    `json:"port"`
 				ProxyPort    *int    `json:"proxyPort"`
 				BotToken     *string `json:"botToken"`
+				OllamaURL    *string `json:"ollamaURL"`
 				SystemPrompt *string `json:"systemPrompt"`
 			}
 			dec := json.NewDecoder(r.Body)
@@ -350,6 +361,9 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 				}
 				if body.BotToken != nil && *body.BotToken != "" {
 					cfg.BotToken = *body.BotToken
+				}
+				if body.OllamaURL != nil {
+					cfg.OllamaURL = *body.OllamaURL
 				}
 				return nil
 			}); err != nil {

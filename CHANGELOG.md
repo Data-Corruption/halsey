@@ -1,34 +1,34 @@
 # Changelog
 
-<!--
-Replace with your changelog entries. You can start at any version that isn't already tagged.
-Remove the leading "//" from the example entries. It's to keep the CI from thinking they're real.
+## [v0.2.0] - 2025-12-20
 
-// ## [v1.0.1] - 2025-12-06
+### 🎉 Stable Beta Release
 
-Example update.
+First beta release for friends to use while development continues.
 
-// ## [v1.0.0] - 2025-11-24
+### Features
 
-Minimal starter for Go CLI apps with an optional webserver daemon, changelog‑driven GitHub Actions CI/CD, and self‑updating installs.
+**Discord Bot**
+- Anti link-rot: Automatically downloads and archives media from Reddit, YouTube Shorts, and RedGifs
+  - Long YouTube video downloads require admin confirmation
+- Auto-expand: Optionally replaces link-only messages with embedded media (per-user toggles)
+- AI Chat: Ollama-powered conversational responses with intent classification
+- Favorite message command: Right-click any message to save media to your favorites channel
+- Download message command: Get direct download links for any archived media
 
-Added
-- CLI scaffold using urfave/cli v3 with common flags and subcommands.
-- Service subcommand running an HTTP server (default :8080); installer provisions a systemd service.
-- Shared atomic data/config directory via LMDB, safely used by both CLI and service.
-- Intuitive migration system for data/config.
-- Structured, rotatable logging via stdx/xlog under the per-user data path.
-- Changelog-driven release automation; daily lightweight version checks and an update command with opt-out notifications.
-- Cross-platform installers:
-  - Linux installer with optional version pinning.
-  - Windows PowerShell (WSL) installer.
-- Build scripts for reproducible, versioned artifacts.
-- Apache-2.0 license and template documentation.
-- Build time variable injection via LDFLAGS with verification tests.
-- Tests for most of the important parts of the codebase (updating, migrations, etc).
+**Settings Dashboard**
+- Web-based admin panel with auth that bootstraps out-of-band via Discord
+- Per-guild configuration (bot channel, favorites channel, backup settings, etc.)
+- Per-channel AI chat toggles
+- User permission management (admin, backup access, AI access)
+- Dark/light theme with system preference detection
 
-Notes
-- Local builds use a placeholder version (vX.X.X) and skips update logic.
-- Project structure using standard Go layout (`cmd`, `internal`, `pkg`).
+**Media Processing**
+- Video compression via ffmpeg with hardware acceleration detection (VAAPI/NVENC)
+- Image compression to AVIF format
+- Configurable Ollama endpoint for AI features
 
--->
+### WIP
+
+- Message/attachment backup system
+- Reddit gallery posts

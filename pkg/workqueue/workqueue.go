@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/Data-Corruption/stdx/xlog"
 )
 
 type JobFunc func() error
@@ -22,21 +24,32 @@ type Queue struct {
 	closed   bool
 	interval time.Duration
 	jitter   time.Duration
+	log      *xlog.Logger
 
 	wg        sync.WaitGroup
 	runningID string
 	running   bool
+
+	// Backoff fields
+	backoffBase    time.Duration
+	backoffCurrent time.Duration
+	backoffMax     time.Duration
 }
 
 // New creates and starts a queue.
 // interval: minimum time between job executions.
 // jitter: extra random delay in [0, jitter] added to each interval.
-func New(interval, jitter time.Duration) *Queue {
+// backoff: initial backoff duration when a job fails. Doubles on each consecutive error, up to a max of 1 hour.
+func New(log *xlog.Logger, interval, jitter, backoff time.Duration) *Queue {
 	q := &Queue{
-		jobs:     make([]job, 0),
-		inQueue:  make(map[string]struct{}),
-		interval: interval,
-		jitter:   jitter,
+		jobs:           make([]job, 0),
+		inQueue:        make(map[string]struct{}),
+		interval:       interval,
+		jitter:         jitter,
+		log:            log,
+		backoffBase:    backoff,
+		backoffCurrent: backoff,
+		backoffMax:     time.Hour,
 	}
 	q.cond = sync.NewCond(&q.mu)
 
@@ -88,6 +101,13 @@ func (q *Queue) Len() int {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	return len(q.jobs)
+}
+
+// ResetBackoff resets the backoff duration to its baseline value.
+func (q *Queue) ResetBackoff() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.backoffCurrent = q.backoffBase
 }
 
 // Close stops accepting new jobs, drops any queued ones, and waits
@@ -146,7 +166,30 @@ func (q *Queue) loop() {
 		q.runningID = j.id
 		q.mu.Unlock()
 
-		_ = j.fn()
+		err := j.fn()
+		if err != nil {
+			q.log.Errorf("job %s failed: %v", j.id, err)
+
+			// Apply backoff on error
+			q.mu.Lock()
+			backoffDuration := q.backoffCurrent
+			// Double the backoff for next time, capped at max
+			if q.backoffCurrent < q.backoffMax {
+				q.backoffCurrent *= 2
+				if q.backoffCurrent > q.backoffMax {
+					q.backoffCurrent = q.backoffMax
+				}
+			}
+			q.mu.Unlock()
+
+			q.log.Warnf("backing off for %v due to job error", backoffDuration)
+			time.Sleep(backoffDuration)
+		} else {
+			// Reset backoff on success
+			q.mu.Lock()
+			q.backoffCurrent = q.backoffBase
+			q.mu.Unlock()
+		}
 
 		q.mu.Lock()
 		delete(q.inQueue, j.id)

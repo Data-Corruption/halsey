@@ -3,6 +3,7 @@ package database
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/Data-Corruption/lmdb-go/lmdb"
@@ -179,6 +180,29 @@ func defaultConfig() Configuration {
 func UpdateConfig(db *wrap.DB, updateFunc func(cfg *Configuration) error) error {
 	_, err := Upsert(db, ConfigDBIName, []byte(ConfigDataKey), defaultConfig, updateFunc)
 	return err
+}
+
+// ViewAsset retrieves a copy of the given asset from the database.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func ViewAsset(db *wrap.DB, url string) (*Asset, error) {
+	return View[Asset](db, AssetsDBIName, []byte(url))
+}
+
+// defaultAsset returns an Asset with default settings.
+func defaultAsset() Asset {
+	return Asset{
+		Path: "",
+	}
+}
+
+// UpsertAsset updates the given asset in the database using the provided
+// update function, creating the asset if it does not already exist.
+// It returns a boolean indicating whether the asset was created.
+//
+// WARNING: Starts a transaction. Avoid nesting transactions (deadlock risk).
+func UpsertAsset(db *wrap.DB, url string, updateFunc func(asset *Asset) error) (bool, error) {
+	return Upsert(db, AssetsDBIName, []byte(url), defaultAsset, updateFunc)
 }
 
 // ViewUser retrieves a copy of the given user from the database.
@@ -525,4 +549,11 @@ func sortGuilds(guilds []GuildWithID) {
 			}
 		}
 	}
+}
+
+// ToAssetPath takes the storage dir, asset name, and returns the full
+// path to the asset using a multi-tiered directory structure based on
+// the start of the asset name which is expected to be a sha256 hash.
+func ToAssetPath(storageDir string, assetName string) string {
+	return filepath.Join(storageDir, assetName[:2], assetName[2:4], assetName)
 }

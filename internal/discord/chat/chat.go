@@ -138,25 +138,35 @@ func (cs *ChannelState) shouldRespond() []Message {
 }
 
 type ChatManager struct {
-	mu       sync.RWMutex
-	channels map[snowflake.ID]*ChannelState
-	client   *bot.Client
-	botName  string // cached bot name
-	db       *wrap.DB
-	log      *xlog.Logger
-	ctx      context.Context
-	cancel   context.CancelFunc
-	closeWG  *sync.WaitGroup // wait group for active work
+	mu        sync.RWMutex
+	channels  map[snowflake.ID]*ChannelState
+	client    *bot.Client
+	botName   string // cached bot name
+	ollamaURL string // base URL for Ollama API
+	db        *wrap.DB
+	log       *xlog.Logger
+	ctx       context.Context
+	cancel    context.CancelFunc
+	closeWG   *sync.WaitGroup // wait group for active work
 }
 
 func NewChatManager(db *wrap.DB, log *xlog.Logger) *ChatManager {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// get ollama URL from config, use default if not set
+	ollamaURL := DEFAULT_OLLAMA_URL
+	if cfg, err := database.ViewConfig(db); err == nil && cfg.OllamaURL != "" {
+		ollamaURL = cfg.OllamaURL
+	}
+
 	cm := &ChatManager{
-		channels: make(map[snowflake.ID]*ChannelState),
-		log:      log,
-		ctx:      ctx,
-		cancel:   cancel,
-		closeWG:  &sync.WaitGroup{},
+		channels:  make(map[snowflake.ID]*ChannelState),
+		ollamaURL: ollamaURL,
+		db:        db,
+		log:       log,
+		ctx:       ctx,
+		cancel:    cancel,
+		closeWG:   &sync.WaitGroup{},
 	}
 
 	cm.closeWG.Add(1)
@@ -196,10 +206,10 @@ func (cm *ChatManager) SetClient(client *bot.Client) {
 	cm.botName = app.Name
 }
 
-func (cm *ChatManager) UpsertChannelMessages(channelID snowflake.ID, fn func([]Message) []Message) {
+func (cm *ChatManager) UpsertChannelMessages(channelID snowflake.ID, guildID snowflake.ID, fn func([]Message) []Message) {
 	cm.mu.Lock()
 	if _, ok := cm.channels[channelID]; !ok {
-		cm.channels[channelID] = &ChannelState{buf: make([]Message, 0)}
+		cm.channels[channelID] = &ChannelState{buf: make([]Message, 0), guildID: guildID}
 	}
 	channel := cm.channels[channelID]
 	cm.mu.Unlock()
@@ -304,7 +314,7 @@ func (cm *ChatManager) processChannel(w workItem) {
 	// intent classification, trim messages to MAX_INT_MSG_TOKENS
 	intentMsgs := evictToBudget(w.msgs, MAX_INT_MSG_TOKENS)
 
-	intentResp, err := classifyIntent(cm.ctx, intentMsgs)
+	intentResp, err := cm.classifyIntent(cm.ctx, intentMsgs)
 	if err != nil {
 		cm.log.Errorf("Failed to classify intent for channel %s: %v", w.channelID, err)
 		return
@@ -332,7 +342,7 @@ func (cm *ChatManager) processChannel(w workItem) {
 	}
 
 	// response generation
-	response, err := generateResponse(cm.ctx, w.msgs)
+	response, err := cm.generateResponse(cm.ctx, w.msgs)
 	if err != nil {
 		cm.log.Errorf("Failed to generate response for channel %s: %v", w.channelID, err)
 		return
@@ -371,7 +381,7 @@ func (cm *ChatManager) processChannel(w workItem) {
 	}
 
 	// insert res immediately into channel buf
-	cm.UpsertChannelMessages(w.channelID, func(buf []Message) []Message {
+	cm.UpsertChannelMessages(w.channelID, w.channel.guildID, func(buf []Message) []Message {
 		if !slices.ContainsFunc(buf, func(m Message) bool {
 			return m.ID == resMsg.ID
 		}) {

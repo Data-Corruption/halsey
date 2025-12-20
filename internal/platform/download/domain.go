@@ -15,6 +15,7 @@ const (
 	DomainXitter
 	DomainYouTube
 	DomainYoutubeShorts
+	DomainRedGifs
 )
 
 func (d Domain) String() string {
@@ -29,6 +30,8 @@ func (d Domain) String() string {
 		return "youtube"
 	case DomainYoutubeShorts:
 		return "youtube_shorts"
+	case DomainRedGifs:
+		return "redgifs"
 	default:
 		return "unknown"
 	}
@@ -76,6 +79,10 @@ func ParseDomain(rawURL string) Domain {
 			return DomainYoutubeShorts
 		}
 		return DomainYouTube
+	case hasAnyPrefix(rawURL, []string{
+		"https://redgifs.com/watch/",
+		"https://www.redgifs.com/watch/"}):
+		return DomainRedGifs
 	default:
 		return DomainUnknown
 	}

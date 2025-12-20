@@ -89,11 +89,11 @@ var Favorite = register(BotCommand{
 		}
 
 		// react to original message
-		favEmoji, err := emojis.GetRandFavEmoji(a)
-		if err != nil {
-			a.Log.Error("Failed to get random favorite emoji: ", err)
+		favEmoji, ok := emojis.GetRandFavEmoji(a)
+		if !ok {
+			a.Log.Error("Failed to get random favorite emoji")
 		} else {
-			if err := response.ReactToMessage(a, message.ChannelID, message.ID, favEmoji); err != nil {
+			if err := response.ReactToMessage(a, message.ChannelID, message.ID, favEmoji.String()); err != nil {
 				a.Log.Error("Failed to react to original message: ", err)
 			}
 		}
@@ -117,8 +117,8 @@ func buildFavoriteMessage(a *app.App, message discord.Message) discord.MessageCr
 	}
 
 	buttonFound := false
-	oLabel := ""
-	oUrl := ""
+	var oEmoji *discord.ComponentEmoji
+	var oUrl string
 	for _, c := range message.Components {
 		discordActionRow, ok := c.(discord.ActionRowComponent)
 		if !ok {
@@ -126,8 +126,8 @@ func buildFavoriteMessage(a *app.App, message discord.Message) discord.MessageCr
 		}
 		for _, comp := range discordActionRow.Components {
 			if linkButton, ok := comp.(discord.ButtonComponent); ok {
-				if (linkButton.Style == discord.ButtonStyleLink) && (linkButton.Label == "▲") {
-					oLabel = linkButton.Label
+				if (linkButton.Style == discord.ButtonStyleLink) && ((linkButton.Emoji != nil) || (linkButton.Label == "▲")) {
+					oEmoji = linkButton.Emoji
 					oUrl = linkButton.URL
 					buttonFound = true
 					break
@@ -143,20 +143,28 @@ func buildFavoriteMessage(a *app.App, message discord.Message) discord.MessageCr
 	msgBuilder.SetFlags(discord.MessageFlagIsComponentsV2)
 
 	// top row buttons
+	jumpToMsgBtn := discord.NewLinkButton("◀",
+		fmt.Sprintf("https://discord.com/channels/%s/%s/%s", *message.GuildID, message.ChannelID, message.ID),
+	)
+	removeBtn := discord.NewSecondaryButton("✖", fmt.Sprintf("remove_favorite.%s.%s", message.ID.String(), message.ChannelID.String()))
 	if buttonFound {
-		msgBuilder.AddComponents(discord.NewActionRow(
-			discord.NewLinkButton("◀",
-				fmt.Sprintf("https://discord.com/channels/%s/%s/%s", *message.GuildID, message.ChannelID, message.ID),
-			),
-			discord.NewLinkButton(oLabel, oUrl),
-			discord.NewSecondaryButton("✖", fmt.Sprintf("remove_favorite.%s.%s", message.ID.String(), message.ChannelID.String())),
-		))
+		if oEmoji != nil {
+			msgBuilder.AddComponents(discord.NewActionRow(
+				jumpToMsgBtn,
+				discord.NewLinkButton("", oUrl).WithEmoji(*oEmoji),
+				removeBtn,
+			))
+		} else {
+			msgBuilder.AddComponents(discord.NewActionRow(
+				jumpToMsgBtn,
+				discord.NewLinkButton("▲", oUrl),
+				removeBtn,
+			))
+		}
 	} else {
 		msgBuilder.AddComponents(discord.NewActionRow(
-			discord.NewLinkButton("◀",
-				fmt.Sprintf("https://discord.com/channels/%s/%s/%s", *message.GuildID, message.ChannelID, message.ID),
-			),
-			discord.NewSecondaryButton("✖", fmt.Sprintf("remove_favorite.%s.%s", message.ID.String(), message.ChannelID.String())),
+			jumpToMsgBtn,
+			removeBtn,
 		))
 	}
 
@@ -177,7 +185,7 @@ func buildFavoriteMessage(a *app.App, message discord.Message) discord.MessageCr
 		var mediaItems []discord.MediaGalleryItem
 		for _, attachment := range media {
 			mediaItems = append(mediaItems, discord.MediaGalleryItem{
-				Media: discord.UnfurledMediaItem{URL: attachment.URL}, // TODO: Don't know if desc is required
+				Media: discord.UnfurledMediaItem{URL: attachment.URL},
 			})
 		}
 		msgBuilder.AddComponents(discord.NewMediaGallery(mediaItems...))

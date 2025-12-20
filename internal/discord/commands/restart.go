@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	"sprout/internal/app"
 	"sprout/internal/discord/emojis"
 	"sprout/internal/platform/database"
@@ -54,10 +55,18 @@ var Restart = register(BotCommand{
 
 		time.Sleep(1 * time.Second) // smoother ux
 
-		// send initial message
+		var content string
 		actionLabel := x.Ternary(doUpdate, "Updating", "Restarting")
+		spinner, ok := emojis.GetSpinnerEmoji(a)
+		if ok {
+			content = fmt.Sprintf("%s %s...", spinner.String(), actionLabel)
+		} else {
+			content = fmt.Sprintf("%s...", actionLabel)
+		}
+
+		// send initial message
 		uMsg, err := a.Client.Rest.CreateFollowupMessage(a.Client.ApplicationID, event.Token(), discord.NewMessageCreateBuilder().
-			SetContentf("%s %s...", emojis.GetSpinnerEmoji(a), actionLabel).
+			SetContent(content).
 			SetEphemeral(true).
 			Build())
 		if err != nil {

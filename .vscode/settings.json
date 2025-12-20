@@ -18,12 +18,16 @@
         "daisyui",
         "datacorruption",
         "demuxer",
+        "divx",
+        "externallinks",
         "faststart",
         "geolocation",
         "hwaccel",
         "hwupload",
+        "jfif",
         "klauspost",
         "lavfi",
+        "libaom",
         "libx",
         "loglevel",
         "maxrate",
@@ -33,10 +37,14 @@
         "nostats",
         "nostdin",
         "nvenc",
+        "pipx",
         "pushback",
+        "rmvb",
         "SAMEORIGIN",
         "vaapi",
         "VAAPI",
-        "vainfo"
+        "vainfo",
+        "xcrypto",
+        "ytdlp"
     ]
 }

@@ -205,7 +205,7 @@ func (m *Manager) Upgrade(db *wrap.DB, redirectTo string) http.Handler {
 			Expires:  session.Expiration,
 			HttpOnly: true,
 			Secure:   true,
-			SameSite: http.SameSiteStrictMode,
+			SameSite: http.SameSiteLaxMode,
 			Path:     "/",
 		})
 

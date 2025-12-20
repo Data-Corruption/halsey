@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.2] - 2025-12-20
+
+**Fixed**
+- settings dashboard auth should now work on mobile
+
 ## [v0.2.1] - 2025-12-20
 
 **Added**

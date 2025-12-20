@@ -55,6 +55,69 @@ var Service = register(func(a *app.App) *cli.Command {
 		},
 		Commands: []*cli.Command{
 			{
+				Name:        "set",
+				Description: "Set config values for bootstrapping server",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "log",
+						Usage: "set log level (DEBUG, INFO, WARN, ERROR)",
+					},
+					&cli.IntFlag{
+						Name:  "port",
+						Usage: "set server port",
+					},
+					&cli.StringFlag{
+						Name:  "host",
+						Usage: "set server host (e.g., localhost, 0.0.0.0)",
+					},
+					&cli.IntFlag{
+						Name:  "proxy",
+						Usage: "set proxy port (0 = no proxy)",
+					},
+					&cli.StringFlag{
+						Name:  "token",
+						Usage: "set bot token",
+					},
+				},
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					updated := false
+
+					if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
+						if cmd.IsSet("log") {
+							cfg.LogLevel = cmd.String("log")
+							updated = true
+						}
+						if cmd.IsSet("port") {
+							cfg.Port = int(cmd.Int("port"))
+							updated = true
+						}
+						if cmd.IsSet("host") {
+							cfg.Host = cmd.String("host")
+							updated = true
+						}
+						if cmd.IsSet("proxy") {
+							cfg.ProxyPort = int(cmd.Int("proxy"))
+							updated = true
+						}
+						if cmd.IsSet("token") {
+							cfg.BotToken = cmd.String("token")
+							updated = true
+						}
+						return nil
+					}); err != nil {
+						return fmt.Errorf("failed to update config: %w", err)
+					}
+
+					if updated {
+						fmt.Println("Configuration updated successfully.")
+					} else {
+						fmt.Println("No configuration values were changed. Use --help to see available options.")
+					}
+
+					return nil
+				},
+			},
+			{
 				Name:        "run",
 				Description: "Runs service in foreground. Typically called by systemd. If you need to run it manually/unmanaged, use this command.",
 				Flags: []cli.Flag{

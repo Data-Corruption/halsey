@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.1] - 2025-12-20
+
+**Added**
+- `service set` command to set config values for bootstrapping server
+
 ## [v0.2.0] - 2025-12-20
 
 ### 🎉 Stable Beta Release

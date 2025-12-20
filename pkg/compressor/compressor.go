@@ -471,17 +471,17 @@ func ffmpegHasEncoder(substr string) bool {
 	return bytes.Contains(out.Bytes(), []byte(substr))
 }
 
-// Probe VAAPI by generating 1 frame of black video and trying to encode it with av1_vaapi.
+// Probe VAAPI by encoding 1 frame of black video with av1_vaapi.
 func ffmpegVAAPIProbe(renderNode string) error {
 	args := []string{
 		"-hide_banner", "-nostdin",
 		"-vaapi_device", renderNode,
 		"-f", "lavfi",
-		"-i", "color=c=black:s=64x64:r=1",
+		"-i", "color=c=black:s=128x128:r=1",
 		"-frames:v", "1",
 		"-vf", "format=nv12,hwupload",
 		"-c:v", "av1_vaapi",
-		"-qp", "48",
+		"-q:v", "25",
 		"-f", "null", "-",
 	}
 	cmd := exec.Command("ffmpeg", args...)

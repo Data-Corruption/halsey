@@ -209,21 +209,26 @@ function pollForRestart(updateRequested = false) {
             return;
         }
 
-        fetch('/settings/restart-status')
+        console.log('Polling for restart...', { updateRequested, time: Date.now() - startTime });
+        fetch('/settings/restart-status?t=' + Date.now())
             .then(res => res.json())
             .then(data => {
+                console.log('Poll response:', data);
                 if (data.restarted) {
                     if (updateRequested && !data.updated) {
+                        console.warn('Restart detected but not updated.', data);
                         unblockClicks();
                         alert('Restart completed, but the update did not apply. You may already be on the latest version, or the update failed.');
                     } else {
+                        console.log('Restart success (updated=' + data.updated + '), reloading...');
                         window.location.reload();
                     }
                 } else {
                     setTimeout(check, pollInterval);
                 }
             })
-            .catch(() => {
+            .catch(err => {
+                console.error('Poll network error (expected if restarting):', err);
                 // Network error during polling - server might be restarting
                 setTimeout(check, pollInterval);
             });

@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.7] - 2025-12-20
+
+More logging for update process
+
 ## [v0.2.6] - 2025-12-20
 
 Dummy release to test production update process

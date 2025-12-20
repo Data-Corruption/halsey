@@ -386,6 +386,9 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 			restarted := cfg.RestartCtx.ListenCounter > 0
 			updated := cfg.RestartCtx.PreUpdateVersion != "" && cfg.RestartCtx.PreUpdateVersion != a.Version
 
+			a.Log.Debugf("Restart status check: ListenCounter=%d, PreUpdateVersion=%q, CurrentVersion=%q, Restarted=%t, Updated=%t",
+				cfg.RestartCtx.ListenCounter, cfg.RestartCtx.PreUpdateVersion, a.Version, restarted, updated)
+
 			w.Header().Set("Content-Type", "application/json")
 			if err := json.NewEncoder(w).Encode(map[string]bool{"restarted": restarted, "updated": updated}); err != nil {
 				xhttp.Error(r.Context(), w, err)

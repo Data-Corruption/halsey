@@ -120,10 +120,12 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command) (context.Context, erro
 		return ctx, fmt.Errorf("failed to initialize database: %w", err)
 	}
 	a.AddCleanup(func() error {
-		database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
+		if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
 			cfg.RestartCtx.PreUpdateVersion = a.Version
 			return nil
-		})
+		}); err != nil {
+			a.Log.Errorf("failed to set PreUpdateVersion on shutdown: %v", err)
+		}
 		a.DB.Close()
 		return nil
 	})

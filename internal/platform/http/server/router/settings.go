@@ -303,6 +303,8 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 				doUpdate = true
 			}
 
+			a.Log.Debugf("Restart requested. Update: %t, RegisterCmds: %t, DoUpdate: %t", body.Update, body.RegisterCommands, doUpdate)
+
 			// update restart context in config
 			if err := database.UpdateConfig(a.DB, func(cfg *database.Configuration) error {
 				cfg.RestartCtx.RegisterCmds = body.RegisterCommands

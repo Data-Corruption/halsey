@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.5] - 2025-12-20
+
+**Changed**
+- PreUpdateVersion is now set in uPrep as well, also added more logging to help with debugging
+
 ## [v0.2.4] - 2025-12-20
 
 **Added**

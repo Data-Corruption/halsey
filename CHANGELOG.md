@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.9] - 2025-12-20
+
+**Fixed**
+- Update from web interface thinking update was not performed when it was. PreUpdateVersion was being clobbered by migration run.
+
 ## [v0.2.8] - 2025-12-20
 
 Dummy release to test production update process

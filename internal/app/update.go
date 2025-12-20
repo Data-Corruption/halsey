@@ -220,13 +220,10 @@ func uPrep(version string, db *wrap.DB) error {
 	// set updateAvailable to false since we're updating
 	if err := database.UpdateConfig(db, func(cfg *database.Configuration) error {
 		cfg.UpdateAvailable = false
-		cfg.RestartCtx.PreUpdateVersion = version
 		return nil
 	}); err != nil {
 		return fmt.Errorf("failed to update updateAvailable in config: %w", err)
 	}
-	// use fmt.Printf so it appears in journal/logs immediately without log level filtering
-	fmt.Printf("Successfully set PreUpdateVersion to %s\n", version)
 	return nil
 }
 

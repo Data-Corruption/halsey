@@ -29,17 +29,17 @@ var ErrTooManyRequests = errors.New("too many requests, try again later")
 
 // DownloadMedia parses the URL into a DownloadPlan and executes it.
 // Returns the path to the downloaded file or an error.
-func DownloadMedia(rawURL, userAgent string, timeout time.Duration) (string, error) {
+func DownloadMedia(rawURL, tempDir, userAgent string, timeout time.Duration) (string, error) {
 	plan, err := ParseMediaURL(rawURL)
 	if err != nil {
 		return "", err
 	}
-	return DownloadWithPlan(plan, userAgent, timeout)
+	return DownloadWithPlan(plan, tempDir, userAgent, timeout)
 }
 
 // DownloadWithPlan executes a previously parsed download plan.
 // Returns the path to the downloaded file or an error.
-func DownloadWithPlan(plan DownloadPlan, userAgent string, timeout time.Duration) (string, error) {
+func DownloadWithPlan(plan DownloadPlan, tempDir, userAgent string, timeout time.Duration) (string, error) {
 	if err := plan.Validate(); err != nil {
 		return "", err
 	}
@@ -52,9 +52,9 @@ func DownloadWithPlan(plan DownloadPlan, userAgent string, timeout time.Duration
 
 	switch plan.Strategy {
 	case StrategyFFmpeg:
-		return fetchWithTempFile(ctx, plan, "ffmpeg", userAgent, runFFmpeg)
+		return fetchWithTempFile(ctx, plan, tempDir, "ffmpeg", userAgent, runFFmpeg)
 	case StrategyDirect:
-		return fetchWithTempFile(ctx, plan, "curl", userAgent, runCurl)
+		return fetchWithTempFile(ctx, plan, tempDir, "curl", userAgent, runCurl)
 	default:
 		return "", fmt.Errorf("unsupported download strategy: %s", plan.Strategy)
 	}
@@ -62,13 +62,13 @@ func DownloadWithPlan(plan DownloadPlan, userAgent string, timeout time.Duration
 
 // YtDLP downloads YouTube media to a temp file, moves it to a safe location, and returns the path.
 // The caller is responsible for removing the returned file when done.
-func YtDLP(ctx context.Context, rawURL string, timeout time.Duration) (string, error) {
+func YtDLP(ctx context.Context, rawURL, tempDir string, timeout time.Duration) (string, error) {
 	if err := ensureTool("yt-dlp"); err != nil {
 		return "", err
 	}
 
 	// create isolated temp dir
-	tmpDir, err := os.MkdirTemp("", "yt-dlp-build-")
+	tmpDir, err := os.MkdirTemp(tempDir, "yt-dlp-build-")
 	if err != nil {
 		return "", fmt.Errorf("mktemp: %w", err)
 	}
@@ -122,7 +122,7 @@ func YtDLP(ctx context.Context, rawURL string, timeout time.Duration) (string, e
 
 	// move to a safe location outside tmpDir
 	finalFileName := fmt.Sprintf("yt-final-%d-%s", time.Now().UnixNano(), filepath.Base(downloadedPath))
-	finalPath := filepath.Join(os.TempDir(), finalFileName)
+	finalPath := filepath.Join(tempDir, finalFileName)
 	if err := os.Rename(downloadedPath, finalPath); err != nil {
 		return "", fmt.Errorf("failed to move file to final destination: %w", err)
 	}
@@ -219,7 +219,7 @@ func UpdateYtDLP() error {
 
 type downloadFn func(ctx context.Context, rawURL, outPath, userAgent string) error
 
-func fetchWithTempFile(ctx context.Context, plan DownloadPlan, tool, userAgent string, runner downloadFn) (string, error) {
+func fetchWithTempFile(ctx context.Context, plan DownloadPlan, tempDir, tool, userAgent string, runner downloadFn) (string, error) {
 	if plan.OutputExt == "" {
 		return "", fmt.Errorf("plan output extension missing for %s", plan.Strategy)
 	}
@@ -228,7 +228,7 @@ func fetchWithTempFile(ctx context.Context, plan DownloadPlan, tool, userAgent s
 		return "", err
 	}
 
-	outFile, err := os.CreateTemp("", "*."+plan.OutputExt)
+	outFile, err := os.CreateTemp(tempDir, "*."+plan.OutputExt)
 	if err != nil {
 		return "", fmt.Errorf("create temp file: %w", err)
 	}

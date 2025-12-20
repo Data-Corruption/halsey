@@ -184,7 +184,7 @@ func handleExternalLinks(a *app.App, event *events.GuildMessageCreate, message *
 				dwldWG.Add(1)
 				a.RedditQueue.Enqueue(link.Url, false, func() error {
 					defer dwldWG.Done()
-					path, err = download.DownloadMedia(url, a.UserAgent, time.Second*10)
+					path, err = download.DownloadMedia(url, a.TempDir, a.UserAgent, time.Second*10)
 					return err
 				})
 				dwldWG.Wait()
@@ -280,7 +280,7 @@ func handleExternalLinks(a *app.App, event *events.GuildMessageCreate, message *
 			wg := &sync.WaitGroup{}
 			wg.Add(1)
 			targetQueue.Enqueue(link.Url, false, func() error {
-				path, err = download.YtDLP(a.Context, link.Url, 30*time.Second)
+				path, err = download.YtDLP(a.Context, link.Url, a.TempDir, 30*time.Second)
 				wg.Done()
 				return err
 			})
@@ -341,7 +341,7 @@ func handleExternalLinks(a *app.App, event *events.GuildMessageCreate, message *
 
 func expandAsset(a *app.App, guildID snowflake.ID, url string, asset *database.Asset, guild *database.Guild, message *discord.Message) error {
 	// create temp dir
-	tempDir, err := os.MkdirTemp("", "")
+	tempDir, err := os.MkdirTemp(a.TempDir, "")
 	if err != nil {
 		return fmt.Errorf("failed to create temp dir: %w", err)
 	}

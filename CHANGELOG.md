@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.10] - 2025-12-20
+
+**Changed**
+- Temp dir is now `~/.halsey/tmp` which should be more forgiving on different file systems / distributions
+
 ## [v0.2.9] - 2025-12-20
 
 **Fixed**

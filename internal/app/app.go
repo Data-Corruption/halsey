@@ -56,6 +56,7 @@ type App struct {
 	UserAgent     string
 	StorageDir    string // (e.g., ~/.appName)
 	RuntimeDir    string // (e.g., XDG_RUNTIME_DIR/name, fallback to /tmp/name-USER)
+	TempDir       string // (e.g., StorageDir/tmp)
 	ReleaseSource ReleaseSource
 
 	RedditQueue  *workqueue.Queue
@@ -92,6 +93,10 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command) (context.Context, erro
 	}
 	if a.RuntimeDir, err = getRuntimePath(a.Name); err != nil {
 		return nil, err
+	}
+	a.TempDir = filepath.Join(a.StorageDir, "tmp")
+	if err := os.MkdirAll(a.TempDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}
 
 	// migration guard before touching anything

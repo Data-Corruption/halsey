@@ -63,7 +63,7 @@ var Download = register(BotComponent{
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
 		a.YoutubeQueue.Enqueue(link, false, func() error {
-			path, err = download.YtDLP(a.Context, link, 30*time.Minute)
+			path, err = download.YtDLP(a.Context, link, a.TempDir, 30*time.Minute)
 			wg.Done()
 			return err
 		})

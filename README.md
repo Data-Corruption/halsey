@@ -6,7 +6,4 @@ Go-based Discord bot for link expansion and lightweight archiving. Minimal footp
 curl -fsSL https://instalsey.regfile.net | sh
 ```
 
-Anti-link-Rot requires ffmpeg and pipx  
-AI chat requires ollama 
-
-wip
+Currently this is a little hard-coded to my use case. I plan to make it more configurable in the future. E.g. configurable bot name, ollama model, etc. I also plan to add docs.

@@ -82,6 +82,21 @@ else
   exit $status
 fi
 
+# esbuild (bundle JS modules)
+JS_DIR="./internal/platform/http/server/router/js"
+[[ "${GITHUB_ACTIONS:-}" == "true" ]] && rm -f esbuild
+[[ -f esbuild ]] || curl -fsSL https://esbuild.github.io/dl/latest | sh
+
+esbuild_cmd=(./esbuild "$JS_DIR/src/main.js" --bundle --minify --outfile="$JS_DIR/utils.js")
+if esbuild_output="$("${esbuild_cmd[@]}" 2>&1)"; then
+  printf '🟢 JavaScript bundled\n'
+else
+  status=$?
+  printf '\n🔴 esbuild failed:\n'
+  printf '%s\n' "$esbuild_output"
+  exit $status
+fi
+
 # tests
 test_cmd=(go test -race ./...)
 if test_output="$("${test_cmd[@]}" 2>&1)"; then

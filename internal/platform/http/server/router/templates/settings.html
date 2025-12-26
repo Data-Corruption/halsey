@@ -486,15 +486,11 @@
                         </div>
 
                         <!-- Update yt-dlp -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text text-base-content font-medium">Update yt-dlp</span>
-                                <span class="label-text-alt text-base-content/50">Requires pipx to be installed</span>
-                            </label>
-                            <div class="flex gap-2 items-center">
-                                <button id="admin-update-yt-dlp" class="btn btn-primary">Update</button>
-                                <span class="status hidden" role="status" aria-live="polite"></span>
-                            </div>
+                        <div class="flex items-center gap-3">
+                            <span class="label-text text-base-content font-medium">yt-dlp</span>
+                            <button id="admin-update-yt-dlp" class="btn btn-sm btn-primary">Update</button>
+                            <span class="status hidden" role="status" aria-live="polite"></span>
+                            <span class="text-xs text-base-content/50">requires pipx</span>
                         </div>
 
                         <!-- Compression HW Acceleration -->
@@ -601,7 +597,7 @@
                                     <!-- Channels Table -->
                                     {{ if .Channels }}
                                     <div class="divider text-xs my-2">Channels</div>
-                                    <div class="overflow-x-auto">
+                                    <div class="overflow-x-hidden">
                                         <table class="table table-xs">
                                             <thead>
                                                 <tr>
@@ -714,7 +710,7 @@
                         <div class="divider">User Management</div>
 
                         {{ if .Users }}
-                        <div class="overflow-x-auto">
+                        <div class="overflow-x-hidden">
                             <table class="table table-xs">
                                 <thead>
                                     <tr>

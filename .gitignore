@@ -6,3 +6,5 @@ tailwindcss
 
 bin/
 notes.md
+esbuild
+internal/platform/http/server/router/js/utils.js.bak

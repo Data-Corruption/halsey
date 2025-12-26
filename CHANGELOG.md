@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.11] - 2025-12-25
+
+**Refactor**
+- Modularize frontend JavaScript into a new `src` directory.
+
 ## [v0.2.10] - 2025-12-20
 
 **Changed**

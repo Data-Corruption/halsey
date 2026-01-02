@@ -171,6 +171,9 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command) (context.Context, erro
 	// put logger into context
 	ctx = xlog.IntoContext(ctx, a.Log)
 
+	// context
+	a.Context = ctx
+
 	// limit concurrent event processing
 	a.DiscordEventLimiter = make(chan struct{}, 100)
 	a.DiscordWG = &sync.WaitGroup{}
@@ -194,7 +197,6 @@ func (a *App) Init(ctx context.Context, cmd *cli.Command) (context.Context, erro
 	// chat manager
 	a.Chat = chat.NewChatManager(a.DB, a.Log)
 
-	a.Context = ctx
 	return ctx, nil
 }
 

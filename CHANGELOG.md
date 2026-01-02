@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.12] - 2025-12-25
+
+**Fixed**
+- Race between app context set and auto-update check that uses it
+
 ## [v0.2.11] - 2025-12-25
 
 **Refactor**

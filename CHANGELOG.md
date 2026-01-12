@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.2.13] - 2025-01-12
+
+**Fixed**
+- gif and webp expansion should now work
+- testing new compression settings
+
 ## [v0.2.12] - 2025-12-25
 
 **Fixed**

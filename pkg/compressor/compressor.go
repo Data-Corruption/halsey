@@ -131,7 +131,7 @@ func New(ctx context.Context) *Compressor {
 	var outArgs, outSafeArgs []string
 
 	// NVENC / SW filters:
-	const sharedVF = "scale=-2:min(1080\\,ih)"
+	const sharedVF = "scale='trunc(oh*a/8)*8:min(1080\\,ih)'"
 
 	// VAAPI filters:
 	// - hw: frames are already VAAPI hwframes -> do NOT hwupload

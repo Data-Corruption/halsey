@@ -363,22 +363,26 @@ func expandAsset(a *app.App, guildID snowflake.ID, url string, asset *database.A
 		return fmt.Errorf("failed to get media type: %s", filepath.Ext(asset.Path))
 	}
 
-	// compress it
+	// compress it, skip if it's a gif or webp
 	var outPath string
-	baseName := strings.TrimSuffix(filepath.Base(asset.Path), filepath.Ext(asset.Path))
-	switch mediaType {
-	case compressor.MediaTypeVideo:
-		outPath = filepath.Join(tempDir, "out"+baseName+".webm")
-		if err := a.Compressor.Video(a.Context, inPath, outPath, 5*time.Minute); err != nil {
-			return fmt.Errorf("failed to compress video: %w", err)
+	if mediaType == "gif" || mediaType == "webp" {
+		outPath = inPath
+	} else {
+		baseName := strings.TrimSuffix(filepath.Base(asset.Path), filepath.Ext(asset.Path))
+		switch mediaType {
+		case compressor.MediaTypeVideo:
+			outPath = filepath.Join(tempDir, "out"+baseName+".webm")
+			if err := a.Compressor.Video(a.Context, inPath, outPath, 5*time.Minute); err != nil {
+				return fmt.Errorf("failed to compress video: %w", err)
+			}
+		case compressor.MediaTypeImage:
+			outPath = filepath.Join(tempDir, "out"+baseName+".avif")
+			if err := a.Compressor.Image(a.Context, inPath, outPath, 30*time.Second); err != nil {
+				return fmt.Errorf("failed to compress image: %w", err)
+			}
+		default:
+			return fmt.Errorf("failed to get media type: %s", mediaType)
 		}
-	case compressor.MediaTypeImage:
-		outPath = filepath.Join(tempDir, "out"+baseName+".avif")
-		if err := a.Compressor.Image(a.Context, inPath, outPath, 30*time.Second); err != nil {
-			return fmt.Errorf("failed to compress image: %w", err)
-		}
-	default:
-		return fmt.Errorf("failed to get media type: %s", mediaType)
 	}
 
 	// open file

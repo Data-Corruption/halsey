@@ -130,6 +130,13 @@ func handleExternalLinks(a *app.App, event *events.GuildMessageCreate, message *
 		return
 	}
 
+	// get config
+	cfg, err := database.ViewConfig(a.DB)
+	if err != nil {
+		a.Log.Error("Failed to get config: ", err)
+		return
+	}
+
 	// download them, update DB references.
 	for i := 0; i < len(links); i++ {
 		link := links[i]
@@ -151,6 +158,10 @@ func handleExternalLinks(a *app.App, event *events.GuildMessageCreate, message *
 
 		switch link.Domain {
 		case download.DomainReddit:
+			if cfg.DisableAutoExpand.Reddit {
+				continue
+			}
+
 			if a.RedditQueue.Has(link.Url) {
 				a.Log.Debugf("Reddit link already in queue: %s", link.Url)
 				continue
@@ -238,6 +249,9 @@ func handleExternalLinks(a *app.App, event *events.GuildMessageCreate, message *
 		case download.DomainYouTube, download.DomainYoutubeShorts, download.DomainRedGifs:
 			var targetQueue *workqueue.Queue
 			if link.Domain == download.DomainYouTube {
+				if cfg.DisableAutoExpand.YouTube {
+					continue
+				}
 				targetQueue = a.YoutubeQueue
 				// get length
 				var seconds int
@@ -269,8 +283,14 @@ func handleExternalLinks(a *app.App, event *events.GuildMessageCreate, message *
 					continue
 				}
 			} else if link.Domain == download.DomainYoutubeShorts {
+				if cfg.DisableAutoExpand.YouTubeShorts {
+					continue
+				}
 				targetQueue = a.YoutubeQueue
 			} else {
+				if cfg.DisableAutoExpand.RedGifs {
+					continue
+				}
 				targetQueue = a.RedGifsQueue
 			}
 
@@ -313,15 +333,15 @@ func handleExternalLinks(a *app.App, event *events.GuildMessageCreate, message *
 		// if user has this domain disabled for auto expand, return.
 		switch domain {
 		case download.DomainReddit:
-			if !user.AutoExpand.Reddit {
+			if !user.AutoExpand.Reddit || cfg.DisableAutoExpand.Reddit {
 				return
 			}
 		case download.DomainYoutubeShorts:
-			if !user.AutoExpand.YouTubeShorts {
+			if !user.AutoExpand.YouTubeShorts || cfg.DisableAutoExpand.YouTubeShorts {
 				return
 			}
 		case download.DomainRedGifs:
-			if !user.AutoExpand.RedGifs {
+			if !user.AutoExpand.RedGifs || cfg.DisableAutoExpand.RedGifs {
 				return
 			}
 		}

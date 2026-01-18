@@ -94,12 +94,13 @@ func settingsRoutes(a *app.App, r *chi.Mux) {
 				"User":            session.User,
 				"AvatarURL":       template.URL(avatarURL),
 				// Admin config fields
-				"LogLevel":  cfg.LogLevel,
-				"Port":      cfg.Port,
-				"Host":      cfg.Host,
-				"ProxyPort": cfg.ProxyPort,
-				"OllamaURL": cfg.OllamaURL,
-				"HWAccel":   a.Compressor.GetHWAccel().String(),
+				"LogLevel":          cfg.LogLevel,
+				"Port":              cfg.Port,
+				"Host":              cfg.Host,
+				"ProxyPort":         cfg.ProxyPort,
+				"OllamaURL":         cfg.OllamaURL,
+				"HWAccel":           a.Compressor.GetHWAccel().String(),
+				"DisableAutoExpand": cfg.DisableAutoExpand,
 				// Guild management
 				"Guilds": guilds,
 				// User management
@@ -333,13 +334,18 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 
 			// Parse body - all fields are optional
 			var body struct {
-				LogLevel     *string `json:"logLevel"`
-				Host         *string `json:"host"`
-				Port         *int    `json:"port"`
-				ProxyPort    *int    `json:"proxyPort"`
-				BotToken     *string `json:"botToken"`
-				OllamaURL    *string `json:"ollamaURL"`
-				SystemPrompt *string `json:"systemPrompt"`
+				LogLevel          *string `json:"logLevel"`
+				Host              *string `json:"host"`
+				Port              *int    `json:"port"`
+				ProxyPort         *int    `json:"proxyPort"`
+				BotToken          *string `json:"botToken"`
+				OllamaURL         *string `json:"ollamaURL"`
+				SystemPrompt      *string `json:"systemPrompt"`
+				DisableAutoExpand *struct {
+					Reddit        *bool `json:"reddit"`
+					RedGifs       *bool `json:"redGifs"`
+					YouTubeShorts *bool `json:"youTubeShorts"`
+				} `json:"disableAutoExpand"`
 			}
 			dec := json.NewDecoder(r.Body)
 			if err := dec.Decode(&body); err != nil {
@@ -366,6 +372,17 @@ func adminSettingsRoutes(a *app.App, r chi.Router) {
 				}
 				if body.OllamaURL != nil {
 					cfg.OllamaURL = *body.OllamaURL
+				}
+				if body.DisableAutoExpand != nil {
+					if body.DisableAutoExpand.Reddit != nil {
+						cfg.DisableAutoExpand.Reddit = *body.DisableAutoExpand.Reddit
+					}
+					if body.DisableAutoExpand.RedGifs != nil {
+						cfg.DisableAutoExpand.RedGifs = *body.DisableAutoExpand.RedGifs
+					}
+					if body.DisableAutoExpand.YouTubeShorts != nil {
+						cfg.DisableAutoExpand.YouTubeShorts = *body.DisableAutoExpand.YouTubeShorts
+					}
 				}
 				return nil
 			}); err != nil {

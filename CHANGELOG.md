@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.14] - 2026-01-18
+
+**Changed**
+- Auto-expand now has a per-domain global toggle in the admin settings dashboard
+
 ## [v0.2.13] - 2025-01-12
 
 **Fixed**

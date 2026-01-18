@@ -39,6 +39,8 @@ type Configuration struct {
 
 	RestartCtx RestartContext `json:"restartContext"`
 
+	DisableAutoExpand DomainBools `json:"disableAutoExpand"`
+
 	BotToken string `json:"botToken"`
 
 	OllamaURL string `json:"ollamaURL"` // e.g., "http://localhost:11434"

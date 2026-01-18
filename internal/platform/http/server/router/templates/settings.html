@@ -500,6 +500,50 @@
                             <span class="text-xs text-base-content/50">auto-detected</span>
                         </div>
 
+                        <div class="divider">Disable Auto-Expand
+                            <div class="tooltip tooltip-left"
+                                data-tip="Server-wide toggles to disable auto-expand for specific domains. When disabled here, users cannot enable it for themselves.">
+                                <span class="text-base-content/50 cursor-help">ⓘ</span>
+                            </div>
+                        </div>
+
+                        <!-- Disable Auto-Expand Toggles -->
+                        <div class="grid grid-cols-3 gap-3">
+                            <!-- Reddit -->
+                            <div class="form-control bg-base-200/50 rounded-lg p-3">
+                                <label class="label cursor-pointer justify-start gap-3">
+                                    <input type="checkbox" id="admin-disable-autoexpand-reddit"
+                                        class="toggle toggle-sm toggle-warning" {{ if .DisableAutoExpand.Reddit
+                                        }}checked="checked" {{ end }} />
+                                    <span class="label-text text-base-content text-sm select-none flex-1">Reddit</span>
+                                    <span class="status hidden" role="status" aria-live="polite"></span>
+                                </label>
+                            </div>
+
+                            <!-- YouTube Shorts -->
+                            <div class="form-control bg-base-200/50 rounded-lg p-3">
+                                <label class="label cursor-pointer justify-start gap-3">
+                                    <input type="checkbox" id="admin-disable-autoexpand-youtube-shorts"
+                                        class="toggle toggle-sm toggle-warning" {{ if .DisableAutoExpand.YouTubeShorts
+                                        }}checked="checked" {{ end }} />
+                                    <span class="label-text text-base-content text-sm select-none flex-1">YT
+                                        Shorts</span>
+                                    <span class="status hidden" role="status" aria-live="polite"></span>
+                                </label>
+                            </div>
+
+                            <!-- RedGifs -->
+                            <div class="form-control bg-base-200/50 rounded-lg p-3">
+                                <label class="label cursor-pointer justify-start gap-3">
+                                    <input type="checkbox" id="admin-disable-autoexpand-redgifs"
+                                        class="toggle toggle-sm toggle-warning" {{ if .DisableAutoExpand.RedGifs
+                                        }}checked="checked" {{ end }} />
+                                    <span class="label-text text-base-content text-sm select-none flex-1">RedGifs</span>
+                                    <span class="status hidden" role="status" aria-live="polite"></span>
+                                </label>
+                            </div>
+                        </div>
+
                         <div class="divider">Guild Management</div>
 
                         {{ if .Guilds }}

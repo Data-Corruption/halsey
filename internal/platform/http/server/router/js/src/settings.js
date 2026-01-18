@@ -29,6 +29,11 @@ function wireAdminSettings() {
     handleTextInput('admin-bot-token', '/settings/admin', 'botToken', 500, { skipEmpty: true, onSuccess: showRestartNotice });
     handleTextInput('admin-ollama-url', '/settings/admin', 'ollamaURL', 500, { onSuccess: showRestartNotice });
 
+    // Disable Auto-Expand (server-wide)
+    handleToggle('admin-disable-autoexpand-reddit', '/settings/admin', 'disableAutoExpand.reddit');
+    handleToggle('admin-disable-autoexpand-youtube-shorts', '/settings/admin', 'disableAutoExpand.youTubeShorts');
+    handleToggle('admin-disable-autoexpand-redgifs', '/settings/admin', 'disableAutoExpand.redGifs');
+
     // yt-dlp Update button (one-shot action, not a toggle)
     const ytdlpBtn = document.getElementById('admin-update-yt-dlp');
     if (ytdlpBtn) {

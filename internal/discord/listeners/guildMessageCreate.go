@@ -167,6 +167,12 @@ func handleExternalLinks(a *app.App, event *events.GuildMessageCreate, message *
 				continue
 			}
 
+			// normalize
+			dwldLink := link.Url
+			if strings.HasPrefix(link.Url, "https://old.reddit.com") {
+				dwldLink = strings.Replace(link.Url, "https://old.reddit.com", "https://reddit.com", 1)
+			}
+
 			// extract
 			var result any
 			var errMsg string
@@ -175,7 +181,7 @@ func handleExternalLinks(a *app.App, event *events.GuildMessageCreate, message *
 			exWG.Add(1)
 			a.RedditQueue.Enqueue(link.Url, false, func() error {
 				defer exWG.Done()
-				result, errMsg, err = extractors.Reddit(a.Context, link.Url, a.UserAgent)
+				result, errMsg, err = extractors.Reddit(a.Context, dwldLink, a.UserAgent)
 				return err
 			})
 			exWG.Wait()

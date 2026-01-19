@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.15] - 2026-01-19
+
+**Fixed**
+- Now handles old.reddit.com links
+
 ## [v0.2.14] - 2026-01-18
 
 **Changed**
